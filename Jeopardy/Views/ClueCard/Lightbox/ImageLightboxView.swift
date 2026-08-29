@@ -32,16 +32,23 @@ struct ImageLightboxView: View {
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
-            Color.black.ignoresSafeArea()
+            // Tapping anywhere on the backdrop (i.e. outside the image
+            // itself) dismisses the lightbox, like clicking "outside" a
+            // photo viewer.
+            Color.black
+                .ignoresSafeArea()
+                .contentShape(Rectangle())
+                .onTapGesture { dismiss() }
 
             Image(nsImage: nsImage)
                 .resizable()
                 .scaledToFit()
                 .scaleEffect(scale)
                 .offset(offset)
-                .padding()
+                .padding(40)
                 .gesture(SimultaneousGesture(magnifyGesture, dragGesture))
                 .onTapGesture(count: 2, perform: resetZoom)
+                .allowsHitTesting(true)
 
             Button {
                 dismiss()
@@ -52,9 +59,12 @@ struct ImageLightboxView: View {
                     .shadow(radius: 4)
             }
             .buttonStyle(.plain)
-            .padding(20)
+            .padding(24)
         }
-        .frame(minWidth: 500, minHeight: 400)
+        .frame(
+            width: (NSScreen.main?.visibleFrame.width ?? 1200) * 0.92,
+            height: (NSScreen.main?.visibleFrame.height ?? 800) * 0.92
+        )
     }
 
     private var magnifyGesture: some Gesture {

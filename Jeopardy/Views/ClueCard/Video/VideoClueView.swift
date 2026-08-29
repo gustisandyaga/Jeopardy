@@ -31,36 +31,36 @@ struct VideoClueView: View {
     private let maxHeight: CGFloat = 360
 
     var body: some View {
-        Group {
-            if let player {
-                Color.black
-                    .aspectRatio(aspectRatio, contentMode: .fit)
-                    .frame(maxWidth: maxWidth, maxHeight: maxHeight)
-                    .overlay { VideoPlayer(player: player) }
-                    .cornerRadius(12)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color.white.opacity(0.15), lineWidth: 1)
-                    )
-                    .overlay(alignment: .topTrailing) {
-                        Button {
-                            isShowingLightbox = true
-                        } label: {
-                            Image(systemName: "arrow.up.left.and.arrow.down.right")
-                                .font(.caption)
-                                .padding(8)
-                                .background(.black.opacity(0.55), in: Circle())
-                                .foregroundColor(.white)
-                        }
-                        .buttonStyle(.plain)
-                        .help("Expand video")
-                        .padding(10)
-                    }
-                    .shadow(radius: 8)
-                    .onDisappear { player.pause() }
-            } else {
-                ProgressView()
-                    .frame(width: maxWidth, height: maxHeight)
+        VStack(spacing: 8) {
+            Group {
+                if let player {
+                    Color.black
+                        .aspectRatio(aspectRatio, contentMode: .fit)
+                        .frame(maxWidth: maxWidth, maxHeight: maxHeight)
+                        .overlay { VideoPlayer(player: player) }
+                        .cornerRadius(12)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(Color.white.opacity(0.15), lineWidth: 1)
+                        )
+                        .shadow(radius: 8)
+                        .onDisappear { player.pause() }
+                } else {
+                    ProgressView()
+                        .frame(width: maxWidth, height: maxHeight)
+                }
+            }
+
+            if player != nil {
+                Button {
+                    isShowingLightbox = true
+                } label: {
+                    Label("Expand", systemImage: "arrow.up.left.and.arrow.down.right")
+                        .font(.caption)
+                }
+                .buttonStyle(.plain)
+                .foregroundColor(.secondary)
+                .help("Open in a larger view")
             }
         }
         .task {

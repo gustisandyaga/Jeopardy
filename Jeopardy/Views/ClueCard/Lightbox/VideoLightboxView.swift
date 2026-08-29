@@ -25,13 +25,18 @@ struct VideoLightboxView: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        ZStack(alignment: .topTrailing) {
-            Color.black.ignoresSafeArea()
+        ZStack(alignment: .topLeading) {
+            Color.black
+                .ignoresSafeArea()
+                .contentShape(Rectangle())
+                .onTapGesture { dismiss() }
 
             Color.clear
                 .aspectRatio(aspectRatio, contentMode: .fit)
+                .padding(40)
                 .overlay { VideoPlayer(player: player) }
-                .padding()
+                .allowsHitTesting(true)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             Button {
                 dismiss()
@@ -42,8 +47,11 @@ struct VideoLightboxView: View {
                     .shadow(radius: 4)
             }
             .buttonStyle(.plain)
-            .padding(20)
+            .padding(24)
         }
-        .frame(minWidth: 600, minHeight: 400)
+        .frame(
+            width: (NSScreen.main?.visibleFrame.width ?? 1200) * 0.92,
+            height: (NSScreen.main?.visibleFrame.height ?? 800) * 0.92
+        )
     }
 }
