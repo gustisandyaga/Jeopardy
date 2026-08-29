@@ -17,6 +17,7 @@ class SoundManager {
 
         do {
             player = try AVAudioPlayer(contentsOf: url)
+            player?.volume = 0.5 // 0.0 is silent, 1.0 is max volume
             player?.play()
         } catch {
             print("Error playing sound: \(error.localizedDescription)")

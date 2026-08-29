@@ -38,6 +38,11 @@ struct ClueCardView: View {
             } label: {
                 Label("Delete Clue", systemImage: "trash")
             }
+            Button(role: .confirm) {
+                reactivateClue()
+            } label: {
+                Label("Reactivate Clue", systemImage: "button.programmable")
+            }
         }
     }
 
@@ -45,6 +50,12 @@ struct ClueCardView: View {
         // Clean up any managed video file before removing the clue itself
         MediaStore.deleteVideo(filename: clue.videoFileName)
         modelContext.delete(clue)
+    }
+    
+    private func reactivateClue() {
+        // Reactivating the clue again as if it wasn't answered
+        // Prob gonna use this for future ref when I need testing
+        clue.isOpened = false
     }
 }
 
