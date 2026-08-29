@@ -37,6 +37,8 @@ Jeopardy/
                                  bottom player bar + toolbar (add/save/load/reset)
     BoardGridView.swift       — scrollable grid of categories x clue cards
     CategoryHeader.swift      — category tile: rename (pencil) + rules (info) popups
+    ImageCropView.swift       — drag-to-move / drag-corners-to-resize crop tool
+                                 used from ClueFormView when attaching an image
     ClueCard/                 — clue card/detail views, media players, and
                                  announcement views split into focused folders
     AddClueView.swift         — actually defines `ClueFormView` + `ClueFormMode`,
@@ -80,6 +82,12 @@ Jeopardy/
   are handled separately because they're large and a raw security-scoped
   `URL` wouldn't survive past the file-picker session in a sandboxed app —
   copying the bytes in is the standard fix.
+- **`Clue.answerImageData`** existed on the model from early on but had no
+  attach UI in `ClueFormView` until the crop feature was added. It's now
+  populated exclusively through the image-crop flow (see "Image cropping"
+  below) rather than a separate standalone attach button — this was a
+  deliberate choice to avoid two independently-clearable checkmarks for
+  what's really one decision (crop vs. keep full).
 - **Board save/load format** (`BoardStorage`): a single self-contained
   `.json` file — categories + rules + all clues, with image/audio/video
   bytes embedded as base64. This makes the file fully portable (email it,
@@ -111,6 +119,36 @@ pre-release/dev data.
     Jeopardy, each player gets an individual saved wager field plus Correct /
     Incorrect controls; resolving a player changes only that player's score
     by their wager, and Undo reverses it safely.
+12. ✅ **Drag & drop, clipboard paste, and image cropping for clue media**
+    — `ClueFormView`'s three media rows (image/audio/video) are each
+    wrapped in a `MediaDropZone` (dashed-border drop target) and accept
+    `.onDrop` in addition to the existing `.fileImporter` buttons. Paste is
+    handled via explicit "Paste" buttons reading `NSPasteboard.general`
+    directly (macOS `AppKit`), **not** `onPasteCommand` — SwiftUI's
+    `Form` auto-focuses its first text field, which intercepts Cmd+V
+    before the form-level paste handler ever sees it, so a pasteboard-read
+    button was the only reliable route.
+    Every image source (file picker, drop, or paste) now routes through
+    `ImageCropView`, a custom drag-to-move / drag-corners-to-resize
+    cropper (no built-in AppKit/SwiftUI cropper exists). The crop sheet
+    has a "Also save the uncropped image as the Answer Image" toggle and
+    a "Skip Crop, Use Full Image" button, so cropping and setting
+    `Clue.answerImageData` happen in one step instead of two — this also
+    gave `answerImageData` its first real attach UI (see Data model
+    decisions above). A "Re-crop" button lets the Host redo the crop
+    later; it re-opens against the stored `answerImageData` (the
+    original, full-resolution source) when one exists, falling back to
+    `imageData` otherwise, so repeated re-crops don't compound resolution
+    loss from cropping an already-cropped image.
+    Fixed along the way: the crop rectangle's drag gestures originally
+    accumulated `DragGesture.translation` (which is cumulative since
+    drag-start, not a per-frame delta) onto an already-moved rect, causing
+    it to fly off exponentially — fixed by snapshotting the rect once at
+    drag-start and always computing from `start + translation`. Also fixed
+    a blank/bugged "Re-crop" sheet on existing clues: `populateFieldsIfNeeded()`
+    was loading `selectedImageData` from `clue.imageData` but never
+    backfilling `pendingOriginalImageData` (the crop sheet's required
+    source image), so the sheet's `if let` silently rendered nothing.
 
 8. ✅ **Special-clue announcements** — standard clues can now be marked as
    **Daily Double** or **Multiple People** in `ClueFormView`; opening them
@@ -186,6 +224,16 @@ Everything from the "Current to-do-list" in the original request:
 - Had an error where NSSaveFile couldn't properly save nor load the board.
   Fixed by going to Project's Signing & Capabilities, changing User Selected
   Files to Read/Write, not just Read-only
+- Drag & drop and paste are macOS-only for now (`NSItemProvider` drop
+  works cross-platform in principle, but the paste buttons use `AppKit`'s
+  `NSPasteboard` directly and are wrapped in `#if os(macOS)`). Consistent
+  with the rest of the app being macOS-only per the header above, but
+  will need a `UIPasteboard` equivalent if this ever needs to run on
+  iOS/iPadOS outside the planned separate companion app.
+- `ImageCropView` is free-form aspect ratio only — no rotation, no locked
+  aspect ratio (e.g. matching the 16:9/9:16 handling `VideoClueView`
+  already does for video). Fine for now; revisit if inconsistent crop
+  shapes across clues become a visual problem on the board.
 
 ## Backlog (from the "Future implementations" section — iOS companion)
 
