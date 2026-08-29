@@ -32,17 +32,18 @@ struct ClueExport: Codable {
     var audioDataBase64: String?
     var videoDataBase64: String?
     var videoFileExtension: String?
+    var answerImageDataBase64: String?
 
     private enum CodingKeys: String, CodingKey {
         case category, question, answer, points, isOpened, isFinalJeopardy
         case isDailyDouble, isMultiplePeople, imageDataBase64, audioDataBase64
-        case videoDataBase64, videoFileExtension
+        case videoDataBase64, videoFileExtension, answerImageDataBase64
     }
 
     init(category: String, question: String, answer: String, points: Int, isOpened: Bool,
          isFinalJeopardy: Bool, isDailyDouble: Bool, isMultiplePeople: Bool,
          imageDataBase64: String?, audioDataBase64: String?, videoDataBase64: String?,
-         videoFileExtension: String?) {
+         videoFileExtension: String?, answerImageDataBase64: String?) {
         self.category = category
         self.question = question
         self.answer = answer
@@ -55,6 +56,7 @@ struct ClueExport: Codable {
         self.audioDataBase64 = audioDataBase64
         self.videoDataBase64 = videoDataBase64
         self.videoFileExtension = videoFileExtension
+        self.answerImageDataBase64 = answerImageDataBase64
     }
 
     init(from decoder: Decoder) throws {
@@ -71,7 +73,8 @@ struct ClueExport: Codable {
             imageDataBase64: try values.decodeIfPresent(String.self, forKey: .imageDataBase64),
             audioDataBase64: try values.decodeIfPresent(String.self, forKey: .audioDataBase64),
             videoDataBase64: try values.decodeIfPresent(String.self, forKey: .videoDataBase64),
-            videoFileExtension: try values.decodeIfPresent(String.self, forKey: .videoFileExtension)
+            videoFileExtension: try values.decodeIfPresent(String.self, forKey: .videoFileExtension),
+            answerImageDataBase64: try values.decodeIfPresent(String.self, forKey: .answerImageDataBase64)
         )
     }
 }
@@ -107,6 +110,7 @@ enum BoardStorage {
                         videoExt = (filename as NSString).pathExtension
                     }
                 }
+                
                 return ClueExport(
                     category: clue.category,
                     question: clue.question,
@@ -119,7 +123,8 @@ enum BoardStorage {
                     imageDataBase64: clue.imageData?.base64EncodedString(),
                     audioDataBase64: clue.audioData?.base64EncodedString(),
                     videoDataBase64: videoBase64,
-                    videoFileExtension: videoExt
+                    videoFileExtension: videoExt,
+                    answerImageDataBase64: clue.answerImageData?.base64EncodedString()
                 )
             }
 
@@ -167,11 +172,13 @@ enum BoardStorage {
                     imageData: clueExport.imageDataBase64.flatMap { Data(base64Encoded: $0) },
                     videoFileName: videoFileName,
                     audioData: clueExport.audioDataBase64.flatMap { Data(base64Encoded: $0) },
+                    answerImageData: clueExport.answerImageDataBase64.flatMap { Data(base64Encoded: $0) },
                     isOpened: clueExport.isOpened,
                     isFinalJeopardy: clueExport.isFinalJeopardy,
                     isDailyDouble: clueExport.isDailyDouble,
                     isMultiplePeople: clueExport.isMultiplePeople
                 )
+                
                 context.insert(clue)
             }
 
