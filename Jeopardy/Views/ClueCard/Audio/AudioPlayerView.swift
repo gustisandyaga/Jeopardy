@@ -15,6 +15,13 @@ struct AudioPlayerView: View {
 
     var body: some View {
         VStack(spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: volumeIcon)
+                    .foregroundColor(.secondary)
+                    .frame(width: 20)
+                Slider(value: $controller.volume, in: 0...1)
+            }
+            
             HStack(spacing: 16) {
                 Button(action: togglePlayPause) {
                     Image(systemName: controller.isPlaying ? "pause.circle.fill" : "play.circle.fill")
@@ -79,6 +86,14 @@ struct AudioPlayerView: View {
         if controller.isFinished { return "Finished" }
         if controller.isPlaying { return "Now Playing…" }
         return "Ready to Play"
+    }
+    
+    private var volumeIcon: String {
+        switch controller.volume {
+        case 0: return "speaker.slash.fill"
+        case ..<0.5: return "speaker.wave.1.fill"
+        default: return "speaker.wave.2.fill"
+        }
     }
 
     private func togglePlayPause() {

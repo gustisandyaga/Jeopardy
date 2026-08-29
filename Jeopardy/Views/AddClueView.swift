@@ -68,6 +68,9 @@ struct ClueFormView: View {
     @State private var selectedVideoFileName: String?
     @State private var initialVideoFileName: String?
     @State private var isImportingVideo = false
+    
+    @State private var selectedAnswerImageData: Data?
+    @State private var isImportingAnswerImage = false
 
     init(mode: ClueFormMode) {
         self.mode = mode
@@ -263,6 +266,33 @@ struct ClueFormView: View {
                             .foregroundColor(.secondary)
                     }
                 }
+                
+                Section("Answer Image (Optional)") {
+                    HStack {
+                        Button("Attach Answer Image") { isImportingAnswerImage = true }
+                        if selectedAnswerImageData != nil {
+                            Image(systemName: "checkmark.circle.fill").foregroundColor(.green)
+                            Button(role: .destructive) { selectedAnswerImageData = nil } label: {
+                                Image(systemName: "xmark.circle")
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .fileImporter(isPresented: $isImportingAnswerImage, allowedContentTypes: [.image]) { result in
+                        switch result {
+                        case .success(let url):
+                            if url.startAccessingSecurityScopedResource() {
+                                selectedAnswerImageData = try? Data(contentsOf: url)
+                                url.stopAccessingSecurityScopedResource()
+                            }
+                        case .failure(let error):
+                            print(error.localizedDescription)
+                        }
+                    }
+                    Text("Shown alongside the answer text when you reveal it.")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
 
                 Section("Clue Details") {
                     MultilineClueField(title: "Question", text: $question)
@@ -290,6 +320,7 @@ struct ClueFormView: View {
         category = clue.category
         question = clue.question
         answer = clue.answer
+        selectedAnswerImageData = clue.answerImageData
         selectedImageData = clue.imageData
         selectedAudioData = clue.audioData
         selectedVideoFileName = clue.videoFileName
@@ -325,6 +356,7 @@ struct ClueFormView: View {
             clue.question = question
             clue.answer = answer
             clue.points = resolvedPoints
+            clue.answerImageData = selectedAnswerImageData
             clue.imageData = selectedImageData
             clue.audioData = selectedAudioData
             clue.videoFileName = selectedVideoFileName
@@ -339,6 +371,7 @@ struct ClueFormView: View {
                 imageData: selectedImageData,
                 videoFileName: selectedVideoFileName,
                 audioData: selectedAudioData,
+                answerImageData: selectedAnswerImageData,
                 isFinalJeopardy: mode.isFinalJeopardyMode,
                 isDailyDouble: specialClueType == .dailyDouble,
                 isMultiplePeople: specialClueType == .multiplePeople

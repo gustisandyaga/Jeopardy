@@ -18,6 +18,9 @@ final class AudioPlayerController: NSObject, ObservableObject, AVAudioPlayerDele
     @Published var isFinished = false
     @Published var currentTime: TimeInterval = 0
     @Published var duration: TimeInterval = 0
+    @Published var volume: Float = 1.0 {
+        didSet { player?.volume = volume }
+    }
 
     private var player: AVAudioPlayer?
     private var timer: Timer?
@@ -28,6 +31,7 @@ final class AudioPlayerController: NSObject, ObservableObject, AVAudioPlayerDele
             player.delegate = self
             player.prepareToPlay()
             self.player = player
+            player.volume = volume
             duration = player.duration
         } catch {
             print("AudioPlayerController: failed to load audio — \(error.localizedDescription)")
