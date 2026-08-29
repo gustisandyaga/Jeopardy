@@ -62,18 +62,29 @@ struct ClueFormView: View {
     @State private var selectedPointOption = 200
     @State private var customPointsText = ""
     
+    /// Image attaching section capabilities
+    
     @State private var selectedImageData: Data?
     @State private var isImportingImage = false
+
+    // NEW — cropping
+    @State private var pendingOriginalImageData: Data?
+    @State private var isCropping = false
+    @State private var alsoUseFullAsAnswerImage = false
+
+    // NEW — answer image (was in the model, had no UI)
+    @State private var selectedAnswerImageData: Data?
+    
+    /// Audio attaching section capabilities
     
     @State private var selectedAudioData: Data?
     @State private var isImportingAudio = false
     
+    /// Video attaching section capabilities
+    
     @State private var selectedVideoFileName: String?
     @State private var initialVideoFileName: String?
     @State private var isImportingVideo = false
-    
-    @State private var selectedAnswerImageData: Data?
-    @State private var isImportingAnswerImage = false
     
     // Ability to paste from clipboard
     @State private var isTargetedImage = false
@@ -179,23 +190,41 @@ struct ClueFormView: View {
                 Section("Media (Optional — pick one)") {
                     // 1. Image drop zone
                     MediaDropZone(isTargeted: isTargetedImage) {
-                        VStack(alignment: .leading, spacing: 4) {
+                        VStack(alignment: .leading, spacing: 6) {
                             HStack {
                                 Button("Attach Image") { isImportingImage = true }
-#if os(macOS)
+                                #if os(macOS)
                                 Button("Paste") { pasteImageFromPasteboard() }
-#endif
+                                #endif
                                 if selectedImageData != nil {
                                     Image(systemName: "checkmark.circle.fill").foregroundColor(.green)
-                                    Button(role: .destructive) { selectedImageData = nil } label: {
+                                    Button("Re-crop") { isCropping = true }
+                                    Button(role: .destructive) {
+                                        selectedImageData = nil
+                                        selectedAnswerImageData = nil   // cleared together — one source, one action
+                                        pendingOriginalImageData = nil
+                                    } label: {
                                         Image(systemName: "xmark.circle")
                                     }
                                     .buttonStyle(.plain)
                                 }
                                 Spacer()
-                                Image(systemName: "photo.badge.plus")
-                                    .foregroundColor(.secondary)
+                                Image(systemName: "photo.badge.plus").foregroundColor(.secondary)
                             }
+
+                            if selectedImageData != nil {
+                                HStack(spacing: 6) {
+                                    Image(systemName: selectedAnswerImageData != nil ? "checkmark.circle.fill" : "circle")
+                                        .foregroundColor(selectedAnswerImageData != nil ? .green : .secondary)
+                                        .font(.caption2)
+                                    Text(selectedAnswerImageData != nil
+                                         ? "Uncropped version saved as Answer Image"
+                                         : "Answer Image not set — tap Re-crop to add it")
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+
                             Text("Drag & drop or paste an image here")
                                 .font(.caption2)
                                 .foregroundColor(.secondary)
@@ -203,11 +232,15 @@ struct ClueFormView: View {
                     }
                     .fileImporter(isPresented: $isImportingImage, allowedContentTypes: [.image]) { result in
                         switch result {
-                        case .success(let url):
-                            if url.startAccessingSecurityScopedResource() {
-                                selectedImageData = try? Data(contentsOf: url)
-                                url.stopAccessingSecurityScopedResource()
-                            }
+                            // fileImporter for image — replace the success case body:
+                            case .success(let url):
+                                if url.startAccessingSecurityScopedResource() {
+                                    if let data = try? Data(contentsOf: url) {
+                                        pendingOriginalImageData = data
+                                        isCropping = true
+                                    }
+                                    url.stopAccessingSecurityScopedResource()
+                                }
                         case .failure(let error):
                             print(error.localizedDescription)
                         }
@@ -313,37 +346,12 @@ struct ClueFormView: View {
                             .foregroundColor(.secondary)
                     }
                 }
-                Section("Answer Image (Optional)") {
-                    HStack {
-                        Button("Attach Answer Image") { isImportingAnswerImage = true }
-                        if selectedAnswerImageData != nil {
-                            Image(systemName: "checkmark.circle.fill").foregroundColor(.green)
-                            Button(role: .destructive) { selectedAnswerImageData = nil } label: {
-                                Image(systemName: "xmark.circle")
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                    .fileImporter(isPresented: $isImportingAnswerImage, allowedContentTypes: [.image]) { result in
-                        switch result {
-                        case .success(let url):
-                            if url.startAccessingSecurityScopedResource() {
-                                selectedAnswerImageData = try? Data(contentsOf: url)
-                                url.stopAccessingSecurityScopedResource()
-                            }
-                        case .failure(let error):
-                            print(error.localizedDescription)
-                        }
-                    }
-                    Text("Shown alongside the answer text when you reveal it.")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                }
                 
                 Section("Clue Details") {
                     MultilineClueField(title: "Question", text: $question)
                     MultilineClueField(title: "Answer", text: $answer)
                 }
+                
             }
             .formStyle(.grouped)
             .navigationTitle(mode.navigationTitle)
@@ -356,7 +364,37 @@ struct ClueFormView: View {
                         .disabled(!isValid)
                 }
             }
-            .frame(minWidth: 420, minHeight: 480)
+            .sheet(isPresented: $isCropping) {
+                if let pendingOriginalImageData, let nsImage = NSImage(data: pendingOriginalImageData) {
+                    ImageCropView(
+                        originalImage: nsImage,
+                        alsoUseFullAsAnswerImage: $alsoUseFullAsAnswerImage,
+                        onCrop: { croppedData in
+                            selectedImageData = croppedData
+                            if alsoUseFullAsAnswerImage {
+                                selectedAnswerImageData = pendingOriginalImageData
+                            }
+                            isCropping = false
+                        },
+                        onUseFullImage: { fullData in
+                            selectedImageData = fullData
+                            if alsoUseFullAsAnswerImage {
+                                selectedAnswerImageData = pendingOriginalImageData
+                            }
+                            isCropping = false
+                        },
+                        onCancel: { isCropping = false }
+                    )
+                } else {
+                    VStack(spacing: 12) {
+                        Text("Couldn't load this image for cropping.")
+                            .font(.headline)
+                        Button("Close") { isCropping = false }
+                    }
+                    .padding()
+                    .frame(width: 360, height: 160)
+                }
+            }            .frame(minWidth: 420, minHeight: 480)
             .onAppear(perform: populateFieldsIfNeeded)
         }
     }
@@ -366,8 +404,18 @@ struct ClueFormView: View {
         category = clue.category
         question = clue.question
         answer = clue.answer
-        selectedAnswerImageData = clue.answerImageData
         selectedImageData = clue.imageData
+        selectedAnswerImageData = clue.answerImageData
+
+        // NEW — re-cropping needs a "source" image. Prefer the stored answer
+        // image (usually the true uncropped original) and fall back to the
+        // clue image itself if there's no separate answer image.
+        pendingOriginalImageData = clue.answerImageData ?? clue.imageData
+
+        // NEW — keep the toggle's state consistent with what was actually saved,
+        // so re-cropping an existing clue doesn't silently change this decision.
+        alsoUseFullAsAnswerImage = clue.answerImageData != nil
+
         selectedAudioData = clue.audioData
         selectedVideoFileName = clue.videoFileName
         initialVideoFileName = clue.videoFileName
@@ -401,9 +449,13 @@ struct ClueFormView: View {
             $0.hasItemConformingToTypeIdentifier(UTType.image.identifier)
         }) else { return false }
         
+        // handleImageProviders — replace the body of the loadDataRepresentation closure:
         provider.loadDataRepresentation(forTypeIdentifier: UTType.image.identifier) { data, _ in
             guard let data else { return }
-            DispatchQueue.main.async { selectedImageData = data }
+            DispatchQueue.main.async {
+                pendingOriginalImageData = data
+                isCropping = true
+            }
         }
         return true
     }
@@ -460,18 +512,21 @@ struct ClueFormView: View {
     }
     
 #if os(macOS)
+    // pasteImageFromPasteboard — replace both "selectedImageData = ..." assignments:
     private func pasteImageFromPasteboard() {
         let pb = NSPasteboard.general
         if let images = pb.readObjects(forClasses: [NSImage.self], options: nil) as? [NSImage],
            let image = images.first,
-           let tiff = image.tiffRepresentation,
-           let bitmap = NSBitmapImageRep(data: tiff),
-           let pngData = bitmap.representation(using: .png, properties: [:]) {
-            selectedImageData = pngData
+           let pngData = image.pngData() {
+            pendingOriginalImageData = pngData
+            isCropping = true
             return
         }
         if let urls = pb.readObjects(forClasses: [NSURL.self], options: nil) as? [URL], let url = urls.first {
-            selectedImageData = try? Data(contentsOf: url)
+            if let data = try? Data(contentsOf: url) {
+                pendingOriginalImageData = data
+                isCropping = true
+            }
         }
     }
     
