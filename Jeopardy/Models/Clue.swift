@@ -27,6 +27,21 @@ class Clue {
     var isDailyDouble: Bool = false
     var isMultiplePeople: Bool = false
 
+    // MARK: Multiple choice (optional)
+    //
+    // When enabled, ClueDetailView shows `choiceOptions` as tappable rows
+    // instead of (or alongside) the free-text `answer`. Tapping a wrong
+    // option crosses it out for everyone still guessing; tapping the
+    // correct one (or pressing "Reveal Answer") highlights it green. The
+    // 50:50 gimmick works by adding two wrong indices to
+    // `eliminatedChoiceIndices` directly. `eliminatedChoiceIndices` is
+    // per-playthrough state, the same way `isOpened` is — it's reset
+    // whenever the clue's options are edited via ClueFormView.
+    var isMultipleChoice: Bool = false
+    var choiceOptions: [String] = []
+    var correctChoiceIndex: Int = 0
+    var eliminatedChoiceIndices: [Int] = []
+
     // Media (optional, pick at most one — see ClueMediaView for display precedence)
     @Attribute(.externalStorage) var imageData: Data?
     @Attribute(.externalStorage) var audioData: Data?
@@ -44,7 +59,9 @@ class Clue {
          imageData: Data? = nil, videoFileName: String? = nil, audioData: Data? = nil,
          answerImageData: Data? = nil,
          isOpened: Bool = false, isFinalJeopardy: Bool = false,
-         isDailyDouble: Bool = false, isMultiplePeople: Bool = false) {
+         isDailyDouble: Bool = false, isMultiplePeople: Bool = false,
+         isMultipleChoice: Bool = false, choiceOptions: [String] = [],
+         correctChoiceIndex: Int = 0, eliminatedChoiceIndices: [Int] = []) {
         self.category = category
         self.question = question
         self.answer = answer
@@ -57,6 +74,10 @@ class Clue {
         self.isFinalJeopardy = isFinalJeopardy
         self.isDailyDouble = isDailyDouble
         self.isMultiplePeople = isMultiplePeople
+        self.isMultipleChoice = isMultipleChoice
+        self.choiceOptions = choiceOptions
+        self.correctChoiceIndex = correctChoiceIndex
+        self.eliminatedChoiceIndices = eliminatedChoiceIndices
     }
 
     /// True if this clue needs a full-screen announcement (Daily Double,

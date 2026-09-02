@@ -8,6 +8,9 @@ struct PlayerView: View {
     @Bindable var player: Players
     let currentCluePoints: Int
     let isFinalJeopardyActive: Bool
+    /// The clue currently open in ClueDetailView, if any. Passed through so
+    /// GimmickBar can target 50:50 at a live multiple-choice clue.
+    let activeClue: Clue?
 
     @State private var isAdjustingScore = false
     @State private var isConfirmingReset = false
@@ -17,6 +20,8 @@ struct PlayerView: View {
             TextField("Name", text: $player.name)
                 .textFieldStyle(.roundedBorder)
                 .multilineTextAlignment(.center)
+
+            GimmickBar(player: player, activeClue: activeClue)
             
             Text("\(player.score)")
                 .font(.system(size: 28, weight: .bold, design: .monospaced))
@@ -33,7 +38,7 @@ struct PlayerView: View {
             }
         }
         .padding()
-        .frame(width: 180, height: isFinalJeopardyActive ? 160 : 120)
+        .frame(width: 180, height: isFinalJeopardyActive ? 190 : 150)
         .background(Color(NSColor.windowBackgroundColor))
         .cornerRadius(10)
         .shadow(radius: 2)
@@ -48,6 +53,15 @@ struct PlayerView: View {
                     isConfirmingReset = true
                 } label: {
                     Label("Reset Score to 0", systemImage: "arrow.counterclockwise")
+                }
+
+                if !player.usedGimmicks.isEmpty {
+                    Button {
+                        player.resetGimmicks()
+                        try? modelContext.save()
+                    } label: {
+                        Label("Reset Power-ups", systemImage: "sparkles")
+                    }
                 }
 
                 Divider()
@@ -245,7 +259,7 @@ struct BottomPlayerBar: View {
                         Image(systemName: "arrow.counterclockwise.circle")
                     }
                     .buttonStyle(.plain)
-                    .help("Reset All Scores to $0")
+                    .help("Reset All Scores to $0 and clear used power-ups")
                 }
                 if isFinalJeopardyActive, !players.isEmpty {
                     Button {
@@ -260,7 +274,7 @@ struct BottomPlayerBar: View {
             }
             .padding(.horizontal)
             .confirmationDialog(
-                "Reset every player's score to $0?",
+                "Reset every player's score to $0 and clear their used power-ups?",
                 isPresented: $isConfirmingResetAll,
                 titleVisibility: .visible
             ) {
@@ -286,7 +300,8 @@ struct BottomPlayerBar: View {
                             PlayerView(
                                 player: player,
                                 currentCluePoints: activeCluePoints,
-                                isFinalJeopardyActive: isFinalJeopardyActive
+                                isFinalJeopardyActive: isFinalJeopardyActive,
+                                activeClue: activeClue
                             )
                         }
                         
@@ -295,7 +310,7 @@ struct BottomPlayerBar: View {
                     .frame(minWidth: geometry.size.width)
                 }
             }
-            .frame(height: isFinalJeopardyActive ? 180 : 140)
+            .frame(height: isFinalJeopardyActive ? 210 : 170)
         }
         .padding(.vertical, 10)
         .frame(maxWidth: .infinity)
@@ -316,7 +331,9 @@ struct BottomPlayerBar: View {
     private func resetAllScores() {
         for player in players {
             player.score = 0
+            player.resetGimmicks()
         }
+        try? modelContext.save()
     }
 
     private func resetFinalJeopardyWagers() {
