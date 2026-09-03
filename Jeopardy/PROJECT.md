@@ -253,3 +253,101 @@ None of the current codebase assumes networking yet — `Players` is a plain
 local SwiftData model with no device/session concept, so this will need
 real design work (likely a new `Services/Connectivity/` layer plus rethinking
 how `Players` maps to a physical device) rather than being a small add-on.
+
+# Addendum: GimmickSystem + Multiple Choice
+
+(Append this section to `Jeopardy/PROJECT.md` under "What was implemented".)
+
+## New files
+
+```
+Models/
+  GimmickType.swift          — enum of power-ups (phoneAFriend, fiftyFifty):
+                                icon, title, tooltip description, tint color
+Views/Gimmicks/
+  GimmickBadgeView.swift     — one small icon; .onHover shows a popover with
+                                what it does; dims + disables once used
+  GimmickBar.swift           — row of badges for one player; owns activation
+                                logic (phone-a-friend is cosmetic-only; 50:50
+                                eliminates two wrong multiple-choice options
+                                on the active Clue)
+```
+
+## Data model changes
+
+- **`Players.usedGimmicks: [String]`** — raw values of `GimmickType` this
+  player has already used this game. Plain `[String]` rather than an enum
+  array so SwiftData persists it without extra Codable ceremony, and adding
+  a new `GimmickType` case never requires a migration. Helpers:
+  `hasUsed(_:)`, `markUsed(_:)`, `markUnused(_:)`, `resetGimmicks()`.
+  "Reset All Scores" in `BottomPlayerBar` now also calls `resetGimmicks()`
+  on every player (confirmation text updated to mention this); there's also
+  a per-player "Reset Power-ups" context menu item.
+- **`Clue`** gained four stored properties:
+  - `isMultipleChoice: Bool`
+  - `choiceOptions: [String]` (2–4 options, authored in `ClueFormView`)
+  - `correctChoiceIndex: Int`
+  - `eliminatedChoiceIndices: [Int]` — which options are currently crossed
+    out. This is playthrough state, same category as `isOpened`: it's reset
+    to `[]` every time the clue is saved from `ClueFormView` (since editing
+    options can shift indices), and it isn't reset just from opening the
+    board — it persists until the Host edits that clue again.
+
+## Gameplay flow
+
+- `ClueFormView` has a new "Multiple Choice (Optional)" section: a toggle
+  plus 4 text fields (A–D) and a "Correct Answer" picker scoped to whichever
+  slots are filled in. `buildChoiceOptions()` filters out blank slots and
+  remaps the correct index into the filtered list on save — so a host can
+  leave slots C/D empty for a 2-option "true/false"-style clue.
+- `ClueDetailView` renders `MultipleChoiceOptionsView` (in `ClueCard.swift`)
+  under the question when `clue.isMultipleChoice`. Before reveal, tapping a
+  wrong option crosses it out in place (meant for "a player guessed this
+  and got it wrong" — the Host taps whatever the player said out loud);
+  tapping the *correct* option calls the same `revealAnswer()` used by the
+  "Reveal Answer" button. After reveal, the correct row turns green with a
+  checkmark; everything else stays struck-through/dimmed as it was.
+- `GimmickBar` (embedded in `PlayerView`, which now also takes
+  `activeClue: Clue?` threaded down from `BottomPlayerBar`/`ContentView`)
+  is what actually calls into the gimmick logic:
+  - **Phone-a-Friend** is intentionally inert — the actual call happens off
+    the app; tapping just flips it to "used" so the Host has something to
+    point at when a player invokes it.
+  - **50:50** is only enabled while there's an active, multiple-choice,
+    not-yet-opened clue with at least one un-eliminated wrong option. On
+    tap it eliminates up to two wrong indices at random (shuffled subset of
+    `remainingWrongIndices`), leaving the correct answer plus at most one
+    wrong option — same mechanism a manual host-tap uses, just applied by
+    the gimmick instead of a player's spoken guess.
+
+## Board export/import
+
+`BoardStorage`'s `ClueExport` gained `isMultipleChoice`, `choiceOptions`,
+`correctChoiceIndex`, and `eliminatedChoiceIndices`, all decoded with
+`decodeIfPresent` + safe defaults so **older exported boards (format
+version 1–2) still import fine** — they just come back in with multiple
+choice off. Bumped `formatVersion` to 3 on new exports (informational only;
+nothing currently branches on it, same as before).
+
+Deliberately **not** touched: `Players`/`usedGimmicks` is not part of board
+export, matching the existing decision that board files save trivia
+content, not a session's roster/scores/state.
+
+## Known follow-ups / not done here
+
+- "50:50" currently always targets the single active clue, not a specific
+  opposing player's guess — there's no concept yet of a gimmick "targeting"
+  another player (e.g. a wager-reduction trap), which was mentioned as a
+  possible future gimmick. `GimmickType` is structured so adding a new case
+  plus its own branch in `GimmickBar.activate(_:)` is the only work needed;
+  a "target another player" gimmick would additionally need a small picker
+  UI to choose who it applies to.
+- No enforced limit on how many multiple-choice clues exist per board —
+  same "no server-side validation, Host is trusted" posture as the rest of
+  the app.
+- Elimination via tapping a wrong option in `MultipleChoiceOptionsView` is
+  toggle-based (tap again to un-strike), in case the Host taps the wrong
+  row by mistake; 50:50's eliminations are not currently reversible from
+  the UI (would need to manually clear `eliminatedChoiceIndices` via the
+  option rows, which stay enabled/tappable for that purpose as long as
+  the answer hasn't been revealed yet).

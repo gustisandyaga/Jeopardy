@@ -7,8 +7,9 @@
 //  up a board or reuse it later. Media (image/audio/video bytes) is embedded
 //  as base64 so the .json file is fully portable on its own.
 //
-//  NOTE: Player rosters/scores are intentionally NOT included — this saves
-//  the *board* (questions), not a specific game session's players/scores.
+//  NOTE: Player rosters/scores (and their used gimmicks) are intentionally
+//  NOT included — this saves the *board* (questions), not a specific game
+//  session's players/scores.
 //
 
 import Foundation
@@ -28,6 +29,11 @@ struct ClueExport: Codable {
     var isFinalJeopardy: Bool
     var isDailyDouble: Bool
     var isMultiplePeople: Bool
+    var isMultipleChoice: Bool
+    var choiceOptions: [String]
+    var correctChoiceIndex: Int
+    var eliminatedChoiceIndices: [Int]
+    var fiftyFiftyUsed: Bool
     var imageDataBase64: String?
     var audioDataBase64: String?
     var videoDataBase64: String?
@@ -36,12 +42,16 @@ struct ClueExport: Codable {
 
     private enum CodingKeys: String, CodingKey {
         case category, question, answer, points, isOpened, isFinalJeopardy
-        case isDailyDouble, isMultiplePeople, imageDataBase64, audioDataBase64
+        case isDailyDouble, isMultiplePeople
+        case isMultipleChoice, choiceOptions, correctChoiceIndex, eliminatedChoiceIndices, fiftyFiftyUsed
+        case imageDataBase64, audioDataBase64
         case videoDataBase64, videoFileExtension, answerImageDataBase64
     }
 
     init(category: String, question: String, answer: String, points: Int, isOpened: Bool,
          isFinalJeopardy: Bool, isDailyDouble: Bool, isMultiplePeople: Bool,
+         isMultipleChoice: Bool, choiceOptions: [String], correctChoiceIndex: Int,
+         eliminatedChoiceIndices: [Int], fiftyFiftyUsed: Bool,
          imageDataBase64: String?, audioDataBase64: String?, videoDataBase64: String?,
          videoFileExtension: String?, answerImageDataBase64: String?) {
         self.category = category
@@ -52,6 +62,11 @@ struct ClueExport: Codable {
         self.isFinalJeopardy = isFinalJeopardy
         self.isDailyDouble = isDailyDouble
         self.isMultiplePeople = isMultiplePeople
+        self.isMultipleChoice = isMultipleChoice
+        self.choiceOptions = choiceOptions
+        self.correctChoiceIndex = correctChoiceIndex
+        self.eliminatedChoiceIndices = eliminatedChoiceIndices
+        self.fiftyFiftyUsed = fiftyFiftyUsed
         self.imageDataBase64 = imageDataBase64
         self.audioDataBase64 = audioDataBase64
         self.videoDataBase64 = videoDataBase64
@@ -70,6 +85,11 @@ struct ClueExport: Codable {
             isFinalJeopardy: try values.decode(Bool.self, forKey: .isFinalJeopardy),
             isDailyDouble: try values.decodeIfPresent(Bool.self, forKey: .isDailyDouble) ?? false,
             isMultiplePeople: try values.decodeIfPresent(Bool.self, forKey: .isMultiplePeople) ?? false,
+            isMultipleChoice: try values.decodeIfPresent(Bool.self, forKey: .isMultipleChoice) ?? false,
+            choiceOptions: try values.decodeIfPresent([String].self, forKey: .choiceOptions) ?? [],
+            correctChoiceIndex: try values.decodeIfPresent(Int.self, forKey: .correctChoiceIndex) ?? 0,
+            eliminatedChoiceIndices: try values.decodeIfPresent([Int].self, forKey: .eliminatedChoiceIndices) ?? [],
+            fiftyFiftyUsed: try values.decodeIfPresent(Bool.self, forKey: .fiftyFiftyUsed) ?? false,
             imageDataBase64: try values.decodeIfPresent(String.self, forKey: .imageDataBase64),
             audioDataBase64: try values.decodeIfPresent(String.self, forKey: .audioDataBase64),
             videoDataBase64: try values.decodeIfPresent(String.self, forKey: .videoDataBase64),
@@ -110,7 +130,7 @@ enum BoardStorage {
                         videoExt = (filename as NSString).pathExtension
                     }
                 }
-                
+
                 return ClueExport(
                     category: clue.category,
                     question: clue.question,
@@ -120,6 +140,11 @@ enum BoardStorage {
                     isFinalJeopardy: clue.isFinalJeopardy,
                     isDailyDouble: clue.isDailyDouble,
                     isMultiplePeople: clue.isMultiplePeople,
+                    isMultipleChoice: clue.isMultipleChoice,
+                    choiceOptions: clue.choiceOptions,
+                    correctChoiceIndex: clue.correctChoiceIndex,
+                    eliminatedChoiceIndices: clue.eliminatedChoiceIndices,
+                    fiftyFiftyUsed: clue.fiftyFiftyUsed,
                     imageDataBase64: clue.imageData?.base64EncodedString(),
                     audioDataBase64: clue.audioData?.base64EncodedString(),
                     videoDataBase64: videoBase64,
@@ -132,7 +157,7 @@ enum BoardStorage {
                 CategoryInfoExport(name: $0.name, rulesText: $0.rulesText)
             }
 
-            return BoardExport(formatVersion: 2, savedAt: Date(), categories: categoryExports, clues: clueExports)
+            return BoardExport(formatVersion: 3, savedAt: Date(), categories: categoryExports, clues: clueExports)
         } catch {
             print("BoardStorage: failed to read board — \(error.localizedDescription)")
             return nil
@@ -176,9 +201,14 @@ enum BoardStorage {
                     isOpened: clueExport.isOpened,
                     isFinalJeopardy: clueExport.isFinalJeopardy,
                     isDailyDouble: clueExport.isDailyDouble,
-                    isMultiplePeople: clueExport.isMultiplePeople
+                    isMultiplePeople: clueExport.isMultiplePeople,
+                    isMultipleChoice: clueExport.isMultipleChoice,
+                    choiceOptions: clueExport.choiceOptions,
+                    correctChoiceIndex: clueExport.correctChoiceIndex,
+                    eliminatedChoiceIndices: clueExport.eliminatedChoiceIndices,
+                    fiftyFiftyUsed: clueExport.fiftyFiftyUsed
                 )
-                
+
                 context.insert(clue)
             }
 

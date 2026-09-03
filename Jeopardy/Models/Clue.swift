@@ -27,6 +27,28 @@ class Clue {
     var isDailyDouble: Bool = false
     var isMultiplePeople: Bool = false
 
+    // MARK: Multiple choice (optional)
+    //
+    // When enabled, ClueDetailView shows `choiceOptions` as tappable rows
+    // instead of (or alongside) the free-text `answer`. Tapping a wrong
+    // option crosses it out for everyone still guessing; tapping the
+    // correct one (or pressing "Reveal Answer") highlights it green.
+    //
+    // `eliminatedChoiceIndices` and `fiftyFiftyUsed` are per-playthrough
+    // state, the same category as `isOpened` — reset whenever the clue's
+    // options are edited via ClueFormView, but NOT reset by "Reset All
+    // Scores" (that only touches Players), matching how `isOpened` already
+    // survives a scores-only reset. `fiftyFiftyUsed` is deliberately on the
+    // Clue (not the Players who used it) — 50:50 permanently reveals
+    // information about this specific clue for everyone, so once any one
+    // player has used it, nobody else should get to use it again on the
+    // same clue (that would leave only the correct answer visible).
+    var isMultipleChoice: Bool = false
+    var choiceOptions: [String] = []
+    var correctChoiceIndex: Int = 0
+    var eliminatedChoiceIndices: [Int] = []
+    var fiftyFiftyUsed: Bool = false
+
     // Media (optional, pick at most one — see ClueMediaView for display precedence)
     @Attribute(.externalStorage) var imageData: Data?
     @Attribute(.externalStorage) var audioData: Data?
@@ -44,7 +66,10 @@ class Clue {
          imageData: Data? = nil, videoFileName: String? = nil, audioData: Data? = nil,
          answerImageData: Data? = nil,
          isOpened: Bool = false, isFinalJeopardy: Bool = false,
-         isDailyDouble: Bool = false, isMultiplePeople: Bool = false) {
+         isDailyDouble: Bool = false, isMultiplePeople: Bool = false,
+         isMultipleChoice: Bool = false, choiceOptions: [String] = [],
+         correctChoiceIndex: Int = 0, eliminatedChoiceIndices: [Int] = [],
+         fiftyFiftyUsed: Bool = false) {
         self.category = category
         self.question = question
         self.answer = answer
@@ -57,6 +82,11 @@ class Clue {
         self.isFinalJeopardy = isFinalJeopardy
         self.isDailyDouble = isDailyDouble
         self.isMultiplePeople = isMultiplePeople
+        self.isMultipleChoice = isMultipleChoice
+        self.choiceOptions = choiceOptions
+        self.correctChoiceIndex = correctChoiceIndex
+        self.eliminatedChoiceIndices = eliminatedChoiceIndices
+        self.fiftyFiftyUsed = fiftyFiftyUsed
     }
 
     /// True if this clue needs a full-screen announcement (Daily Double,

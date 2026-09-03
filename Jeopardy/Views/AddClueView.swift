@@ -90,7 +90,18 @@ struct ClueFormView: View {
     @State private var isTargetedImage = false
     @State private var isTargetedAudio = false
     @State private var isTargetedVideo = false
-    
+
+    /// Multiple choice attaching section capabilities
+    ///
+    /// Options are a free-growing list (minimum 2, so there's still a real
+    /// choice; capped at 8 just to keep the form sane) rather than a fixed
+    /// A–D set, so the Host can add/remove rows as needed.
+    private let minChoiceOptions = 2
+    private let maxChoiceOptions = 8
+    @State private var isMultipleChoice = false
+    @State private var choiceOptionTexts: [String] = ["", ""]
+    @State private var correctChoiceIndex = 0
+
     init(mode: ClueFormMode) {
         self.mode = mode
     }
@@ -110,14 +121,35 @@ struct ClueFormView: View {
         selectedImageData != nil || selectedAudioData != nil || selectedVideoFileName != nil
     }
     
+    /// Non-empty options (trimmed), in order, plus the correct index
+    /// remapped into that filtered list. Returns nil if fewer than 2
+    /// options are filled in, or the chosen correct slot is itself blank.
+    private func buildChoiceOptions() -> (options: [String], correctIndex: Int)? {
+        let trimmed = choiceOptionTexts.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        let nonEmpty = trimmed.enumerated().filter { !$0.element.isEmpty }
+        guard nonEmpty.count >= minChoiceOptions else { return nil }
+        guard let newCorrectIndex = nonEmpty.firstIndex(where: { $0.offset == correctChoiceIndex }) else { return nil }
+        return (nonEmpty.map { $0.element }, newCorrectIndex)
+    }
+
+    /// True once a valid, complete multiple-choice answer is set up — this
+    /// alone is enough to count as "the answer", so the free-text Answer
+    /// field becomes optional whenever this is true.
+    private var hasValidMultipleChoiceAnswer: Bool {
+        isMultipleChoice && buildChoiceOptions() != nil
+    }
+
     var isValid: Bool {
         let questionOK = !question.trimmingCharacters(in: .whitespaces).isEmpty
-        let answerOK = !answer.trimmingCharacters(in: .whitespaces).isEmpty
+        let answerTextOK = !answer.trimmingCharacters(in: .whitespaces).isEmpty
+        // Either a filled-out multiple-choice answer or the plain text
+        // answer is enough — they're not both required.
+        let answerProvided = answerTextOK || hasValidMultipleChoiceAnswer
         if mode.isFinalJeopardyMode {
-            return questionOK && answerOK
+            return questionOK && answerProvided
         }
         let categoryOK = !category.trimmingCharacters(in: .whitespaces).isEmpty
-        return categoryOK && questionOK && answerOK && effectivePoints > 0
+        return categoryOK && questionOK && answerProvided && effectivePoints > 0
     }
     
     private enum SpecialClueType: String, CaseIterable, Identifiable {
@@ -187,6 +219,49 @@ struct ClueFormView: View {
                     }
                 }
                 
+                Section("Multiple Choice (Optional)") {
+                    Toggle("Enable multiple choice", isOn: $isMultipleChoice)
+
+                    if isMultipleChoice {
+                        ForEach(choiceOptionTexts.indices, id: \.self) { idx in
+                            HStack {
+                                Text(choiceLetter(for: idx))
+                                    .font(.headline)
+                                    .frame(width: 20)
+                                TextField("Option \(choiceLetter(for: idx))", text: $choiceOptionTexts[idx])
+                                if choiceOptionTexts.count > minChoiceOptions {
+                                    Button(role: .destructive) {
+                                        removeOption(at: idx)
+                                    } label: {
+                                        Image(systemName: "minus.circle")
+                                    }
+                                    .buttonStyle(.plain)
+                                    .help("Remove this option")
+                                }
+                            }
+                        }
+
+                        Button {
+                            choiceOptionTexts.append("")
+                        } label: {
+                            Label("Add Option", systemImage: "plus.circle")
+                        }
+                        .disabled(choiceOptionTexts.count >= maxChoiceOptions)
+
+                        Picker("Correct Answer", selection: $correctChoiceIndex) {
+                            ForEach(choiceOptionTexts.indices, id: \.self) { idx in
+                                if !choiceOptionTexts[idx].trimmingCharacters(in: .whitespaces).isEmpty {
+                                    Text(choiceLetter(for: idx)).tag(idx)
+                                }
+                            }
+                        }
+
+                        Text("Needs at least 2 filled-in options. A completed multiple-choice answer counts as this clue's answer, so the Answer field below becomes optional. Wrong guesses get crossed out live during play, and the 50:50 power-up eliminates two wrong options automatically.")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                }
+
                 Section("Media (Optional — pick one)") {
                     // 1. Image drop zone
                     MediaDropZone(isTargeted: isTargetedImage) {
@@ -349,7 +424,10 @@ struct ClueFormView: View {
                 
                 Section("Clue Details") {
                     MultilineClueField(title: "Question", text: $question)
-                    MultilineClueField(title: "Answer", text: $answer)
+                    MultilineClueField(
+                        title: hasValidMultipleChoiceAnswer ? "Answer (optional — multiple choice is set)" : "Answer",
+                        text: $answer
+                    )
                 }
                 
             }
@@ -399,6 +477,16 @@ struct ClueFormView: View {
         }
     }
     
+    private func removeOption(at index: Int) {
+        guard choiceOptionTexts.count > minChoiceOptions else { return }
+        choiceOptionTexts.remove(at: index)
+        if correctChoiceIndex == index {
+            correctChoiceIndex = 0
+        } else if correctChoiceIndex > index {
+            correctChoiceIndex -= 1
+        }
+    }
+
     private func populateFieldsIfNeeded() {
         guard let clue = mode.existingClue else { return }
         category = clue.category
@@ -429,6 +517,15 @@ struct ClueFormView: View {
         } else {
             selectedPointOption = customPointsSentinel
             customPointsText = String(clue.points)
+        }
+
+        isMultipleChoice = clue.isMultipleChoice
+        if clue.isMultipleChoice, !clue.choiceOptions.isEmpty {
+            choiceOptionTexts = clue.choiceOptions
+            correctChoiceIndex = min(max(clue.correctChoiceIndex, 0), choiceOptionTexts.count - 1)
+        } else {
+            choiceOptionTexts = ["", ""]
+            correctChoiceIndex = 0
         }
     }
     
@@ -552,7 +649,17 @@ struct ClueFormView: View {
     private func saveClue() {
         let resolvedCategory = mode.isFinalJeopardyMode ? "Final Jeopardy" : category
         let resolvedPoints = mode.isFinalJeopardyMode ? 0 : effectivePoints
-        
+
+        // Multiple-choice fields are recomputed fresh on every save, since
+        // editing the option text can shift which index is "correct" — and
+        // any in-progress elimination/50:50 state from a previous
+        // playthrough of this clue is reset along with it, to avoid stale
+        // indices pointing at options that no longer exist.
+        let builtChoices = isMultipleChoice ? buildChoiceOptions() : nil
+        let finalIsMultipleChoice = builtChoices != nil
+        let finalChoiceOptions = builtChoices?.options ?? []
+        let finalCorrectIndex = builtChoices?.correctIndex ?? 0
+
         if let clue = mode.existingClue {
             clue.category = resolvedCategory
             clue.question = question
@@ -564,6 +671,11 @@ struct ClueFormView: View {
             clue.videoFileName = selectedVideoFileName
             clue.isDailyDouble = !mode.isFinalJeopardyMode && specialClueType == .dailyDouble
             clue.isMultiplePeople = !mode.isFinalJeopardyMode && specialClueType == .multiplePeople
+            clue.isMultipleChoice = finalIsMultipleChoice
+            clue.choiceOptions = finalChoiceOptions
+            clue.correctChoiceIndex = finalCorrectIndex
+            clue.eliminatedChoiceIndices = []
+            clue.fiftyFiftyUsed = false
         } else {
             let newClue = Clue(
                 category: resolvedCategory,
@@ -576,7 +688,10 @@ struct ClueFormView: View {
                 answerImageData: selectedAnswerImageData,
                 isFinalJeopardy: mode.isFinalJeopardyMode,
                 isDailyDouble: specialClueType == .dailyDouble,
-                isMultiplePeople: specialClueType == .multiplePeople
+                isMultiplePeople: specialClueType == .multiplePeople,
+                isMultipleChoice: finalIsMultipleChoice,
+                choiceOptions: finalChoiceOptions,
+                correctChoiceIndex: finalCorrectIndex
             )
             modelContext.insert(newClue)
         }
