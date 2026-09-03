@@ -56,6 +56,7 @@ struct ClueCardView: View {
         // Reactivating the clue again as if it wasn't answered
         // Prob gonna use this for future ref when I need testing
         clue.isOpened = false
+        clue.eliminatedChoiceIndices = []
     }
 }
 

@@ -85,7 +85,6 @@ struct ContentView: View {
             }
             
             BottomPlayerBar(activeCluePoints: selectedPoints, activeClue: activeClue)
-                .frame(height: activeClue?.isFinalJeopardy == true ? 220 : 180)
                 .background(Color(NSColor.windowBackgroundColor))
                 .shadow(color: .black.opacity(0.1), radius: 5, y: -2)
         }

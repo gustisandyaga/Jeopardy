@@ -351,3 +351,23 @@ content, not a session's roster/scores/state.
   the UI (would need to manually clear `eliminatedChoiceIndices` via the
   option rows, which stay enabled/tappable for that purpose as long as
   the answer hasn't been revealed yet).
+
+--- Known limitations section ---
+  (no change needed — this was never previously documented as a known
+  limitation, since it was an undiscovered layout bug rather than a
+  deliberate tradeoff)
+
+--- What was implemented (append at end) ---
+
+13. ✅ **Fixed BottomPlayerBar height mismatch overlapping Final Jeopardy
+    row** — `ContentView` pinned `BottomPlayerBar` to a hardcoded
+    `.frame(height: 220/180)`, but `PlayerView`'s actual content (Players
+    header row + gimmick badges + wager controls during Final Jeopardy)
+    needed roughly 270/230pt to render without clipping. Since SwiftUI
+    doesn't clip content that's taller than a `.frame(height:)` constraint,
+    the excess bled upward and visually overlapped the "FINAL JEOPARDY"
+    section above it. Fixed by removing the hardcoded frame from
+    `ContentView` entirely — `BottomPlayerBar`'s own `VStack` already sizes
+    itself correctly from its children (the header row's natural height +
+    the `GeometryReader` row's explicit `170/210`pt height), so there's no
+    longer a second, independently-drifting number to keep in sync.
