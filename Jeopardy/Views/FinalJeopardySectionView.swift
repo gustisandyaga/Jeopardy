@@ -86,6 +86,7 @@ struct FinalJeopardySectionView: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
                     .padding(.horizontal)
+                    .padding(.bottom)
             }
         }
         .padding(.vertical, 8)

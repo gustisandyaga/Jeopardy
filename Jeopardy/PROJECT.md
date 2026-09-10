@@ -371,3 +371,41 @@ content, not a session's roster/scores/state.
     itself correctly from its children (the header row's natural height +
     the `GeometryReader` row's explicit `170/210`pt height), so there's no
     longer a second, independently-drifting number to keep in sync.
+
+14. ✅ **Empty-board state with icon-tile entry points** — `BoardGridView`
+    now checks `categories.isEmpty` and, when true, renders a new
+    `EmptyBoardStateView` (`Views/EmptyBoardStateView.swift`) instead of a
+    blank grid. It shows three large tiles — "5 × 5 Sample Board",
+    "Import Board" (macOS only), and "Add a Clue" — each wired straight to
+    the *existing* logic (`ContentView.createDummyBoard()`,
+    `BoardStorage.importBoard`, and the Add Clue sheet) via closures passed
+    into `BoardGridView`'s init. No new board-building logic was added;
+    this only surfaces actions that previously lived solely in the toolbar.
+    Motivated by two heuristics from the usability pass this session:
+    - *Recognition rather than recall* (Nielsen) — the Host no longer has
+      to remember that the toolbar's `+`/import/trash icons are "how you
+      get started"; the empty grid itself now names the next step.
+    - *Law of common region* (Gestalt) — the three tiles sit in one
+      centered group so they read as "here's how to set up your board"
+      rather than three unrelated buttons.
+    Deliberately gave each tile its own accent color/icon rather than
+    identical styling — full Gestalt-style uniformity across all three
+    was judged to flatten their individual affordance/monotonize the row,
+    so a little visual variety was kept intentionally.
+    `onImportBoard` is `nil` on non-macOS builds (mirrors the toolbar's
+    existing `#if os(macOS)` guard around Load Board), and
+    `EmptyBoardStateView` simply omits that tile when it's `nil`.
+
+## Known limitations / things to revisit (addendum)
+
+- `EmptyBoardStateView` only triggers off `categories.isEmpty`, which is
+  true whenever there are zero non-Final-Jeopardy clues — it does NOT
+  check whether a Final Jeopardy clue exists on its own. Practically this
+  matches "board is empty" as the Host would think of it (an
+  FJ-only board with no categories still isn't really playable from the
+  main grid), but worth noting if that ever needs to change.
+- Tile styling (`EmptyStateTile`) uses `NSColor.controlBackgroundColor`
+  and SwiftUI's `.gradient` modifier on `Color`, both macOS-only /
+  fairly new APIs — consistent with the rest of this codebase's current
+  macOS-only, un-guarded `NSColor` usage (see existing note above), but
+  will need adjustment if/when this view needs to run cross-platform.

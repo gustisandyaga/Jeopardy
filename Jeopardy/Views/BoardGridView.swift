@@ -12,6 +12,14 @@ struct BoardGridView: View {
     @Binding var selectedPoints: Int
     @Binding var activeClue: Clue?
 
+    /// Entry points surfaced by `EmptyBoardStateView` when the board has no
+    /// clues yet. These just call back up to ContentView's existing logic
+    /// (createDummyBoard / BoardStorage.importBoard / Add Clue sheet) — no
+    /// new board-building logic lives here.
+    var onCreateDummyBoard: () -> Void
+    var onImportBoard: (() -> Void)?
+    var onAddClue: () -> Void
+
     @State private var editingClue: Clue?
 
     private let columnWidth: CGFloat = 200
@@ -22,6 +30,27 @@ struct BoardGridView: View {
     }
 
     var body: some View {
+        Group {
+            if categories.isEmpty {
+                EmptyBoardStateView(
+                    onCreateDummyBoard: onCreateDummyBoard,
+                    onImportBoard: onImportBoard,
+                    onAddClue: onAddClue
+                )
+            } else {
+                boardGrid
+            }
+        }
+        .background(Color.black.opacity(0.05))
+        .onAppear {
+            selectedPoints = 0
+        }
+        .sheet(item: $editingClue) { clue in
+            ClueFormView(mode: .edit(clue))
+        }
+    }
+
+    private var boardGrid: some View {
         GeometryReader { geometry in
             // Outer scroll is horizontal-only. Both the header row and the
             // clue grid below live inside it, so they always move together
@@ -41,7 +70,7 @@ struct BoardGridView: View {
                         }
                         Spacer(minLength: 0)
                     }
-                    .padding(.top, 40)
+                    .padding(.top, 10)
                     .padding(.bottom, 15)
                     .zIndex(1)
 
@@ -75,13 +104,6 @@ struct BoardGridView: View {
                 .frame(minWidth: geometry.size.width)
                 .frame(height: geometry.size.height, alignment: .top)
             }
-        }
-        .background(Color.black.opacity(0.05))
-        .onAppear {
-            selectedPoints = 0
-        }
-        .sheet(item: $editingClue) { clue in
-            ClueFormView(mode: .edit(clue))
         }
     }
 }

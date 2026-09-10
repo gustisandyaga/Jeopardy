@@ -13,7 +13,13 @@ struct ContentView: View {
         VStack(spacing: 0) {
             NavigationStack {
                 VStack(spacing: 0) {
-                    BoardGridView(selectedPoints: $selectedPoints, activeClue: $activeClue)
+                    BoardGridView(
+                        selectedPoints: $selectedPoints,
+                        activeClue: $activeClue,
+                        onCreateDummyBoard: createDummyBoard,
+                        onImportBoard: importBoardAction,
+                        onAddClue: { isShowingAddClue = true }
+                    )
                     FinalJeopardySectionView(selectedPoints: $selectedPoints, activeClue: $activeClue)
                 }
                 .navigationTitle("Jeopardy Board")
@@ -88,6 +94,18 @@ struct ContentView: View {
                 .background(Color(NSColor.windowBackgroundColor))
                 .shadow(color: .black.opacity(0.1), radius: 5, y: -2)
         }
+    }
+
+    /// nil on non-macOS platforms — mirrors the toolbar's existing
+    /// `#if os(macOS)` guard around Load Board, so the empty-state tile
+    /// simply doesn't render there instead of calling into an
+    /// unavailable NSOpenPanel-based flow.
+    private var importBoardAction: (() -> Void)? {
+        #if os(macOS)
+        return { BoardStorage.importBoard(context: modelContext) }
+        #else
+        return nil
+        #endif
     }
     
     private func clearBoard() {
