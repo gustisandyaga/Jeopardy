@@ -29,6 +29,16 @@ struct BoardGridView: View {
         Array(Set(clues.map { $0.category })).sorted()
     }
 
+    /// A category counts as "completed" once it has at least one clue and
+    /// every clue under it has been opened. The "at least one" guard stops
+    /// a category that's never had clues added from being (incorrectly)
+    /// shown as done — vacuous truth on an empty filter would otherwise
+    /// mark it complete with nothing actually answered.
+    private func isCategoryCompleted(_ category: String) -> Bool {
+        let categoryClues = clues.filter { $0.category == category }
+        return !categoryClues.isEmpty && categoryClues.allSatisfy { $0.isOpened }
+    }
+
     var body: some View {
         Group {
             if categories.isEmpty {
@@ -65,12 +75,12 @@ struct BoardGridView: View {
                     HStack(alignment: .top, spacing: columnSpacing) {
                         Spacer(minLength: 0)
                         ForEach(categories, id: \.self) { category in
-                            CategoryHeader(title: category)
+                            CategoryHeader(title: category, isCompleted: isCategoryCompleted(category))
                                 .frame(width: columnWidth)
                         }
                         Spacer(minLength: 0)
                     }
-                    .padding(.top, 10)
+                    .padding(.top, 40)
                     .padding(.bottom, 15)
                     .zIndex(1)
 

@@ -8,12 +8,23 @@
 //   - a pencil button to rename the category, which cascades to every Clue
 //     that currently uses this category name.
 //
+//  Also reflects completion state: once every clue in this category has
+//  been opened, the tile dims to grey — mirroring ClueCardView's own
+//  answered-tile treatment (visibility of system status), but using a
+//  DIFFERENT grey rather than the identical shade. A category header and a
+//  clue tile represent different kinds of information (an aggregate of five
+//  clues vs. one clue's own state), so making them pixel-identical would
+//  blur that distinction rather than clarify it — deliberately keeping
+//  them in the same "grey = done" family without collapsing them into one
+//  visual meaning.
+//
 
 import SwiftUI
 import SwiftData
 
 struct CategoryHeader: View {
     let title: String
+    var isCompleted: Bool = false
     @Environment(\.modelContext) private var modelContext
 
     @State private var isShowingRules = false
@@ -23,6 +34,14 @@ struct CategoryHeader: View {
     @State private var isShowingRename = false
     @State private var renameDraft = ""
 
+    /// Deliberately NOT the same value as ClueCardView's `Color.gray.opacity(0.55)`
+    /// — see file header. This is a cooler, slightly darker slate rather than a
+    /// neutral grey, so a fully-answered category header still reads as
+    /// distinct from an individual answered clue tile even at a glance.
+    private var backgroundColor: Color {
+        isCompleted ? Color(red: 0.30, green: 0.33, blue: 0.38).opacity(0.85) : Color.blue.opacity(0.8)
+    }
+
     var body: some View {
         ZStack(alignment: .topTrailing) {
             Text(title.uppercased())
@@ -31,8 +50,8 @@ struct CategoryHeader: View {
                 .padding(.horizontal, 4)
                 .frame(maxWidth: .infinity)
                 .frame(height: 60)
-                .background(Color.blue.opacity(0.8))
-                .foregroundColor(.white)
+                .background(backgroundColor)
+                .foregroundColor(isCompleted ? .white.opacity(0.6) : .white)
                 .cornerRadius(8)
                 .shadow(radius: 2)
 

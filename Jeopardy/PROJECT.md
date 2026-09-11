@@ -409,3 +409,35 @@ content, not a session's roster/scores/state.
   fairly new APIs — consistent with the rest of this codebase's current
   macOS-only, un-guarded `NSColor` usage (see existing note above), but
   will need adjustment if/when this view needs to run cross-platform.
+
+15. ✅ **Category header reflects completion state** — `CategoryHeader`
+    now takes an `isCompleted: Bool` param; `BoardGridView` computes it per
+    category via `isCategoryCompleted(_:)` (true when the category has at
+    least one clue and every clue in it has `isOpened == true`) and passes
+    it down alongside `title`. Previously a category with every clue
+    answered still showed the same solid blue tile as an untouched one —
+    the Host had to visually scan all five clue tiles in a column to infer
+    "this category is done," even though the app already had that fact.
+    Motivated by *visibility of system status* (Nielsen #1): surface a fact
+    the system already knows rather than leaving the Host to infer it.
+    Deliberately used a DIFFERENT grey from `ClueCardView`'s own
+    answered-tile grey (`Color.gray.opacity(0.55)`) rather than the same
+    value — `CategoryHeader` now uses `Color(red: 0.30, green: 0.33, blue:
+    0.38).opacity(0.85)`, a cooler/darker slate. Both are legible as "done"
+    (same grey family, same *meaning*), but a category header and a clue
+    tile represent different kinds of information (an aggregate of several
+    clues' state vs. one clue's own state), so this was a deliberate
+    partial break from strict visual consistency (Nielsen #4) rather than
+    an oversight — full pixel-identical styling was judged to blur that
+    distinction rather than clarify it. See file-header comment in
+    `CategoryHeader.swift` for the same reasoning in-code.
+    The rename (pencil) and rules (info) buttons remain active regardless
+    of completion state — a finished category can still be renamed or have
+    its rules edited.
+
+## Known limitations / things to revisit (addendum)
+
+- `isCategoryCompleted` is recomputed on every `BoardGridView` body
+  evaluation by filtering `clues` per category (O(categories × clues)).
+  Fine at current board sizes (a handful of categories × 5 clues each);
+  would be worth caching/memoizing if boards ever grow much larger.
