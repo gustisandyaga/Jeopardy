@@ -36,9 +36,16 @@ enum AnnouncementKind {
         }
     }
 
+    /// Final Jeopardy uses the theme's reserved "special occasion" color
+    /// (.jeopardyFinal, Indigo Velvet) instead of a generic .yellow, so it
+    /// reads as visually distinct from Daily Double/Multiple People rather
+    /// than just another accent color. See Theme/JeopardyColors.swift and
+    /// PROJECT.md's "Color Theme" addendum. Daily Double and Multiple
+    /// People are intentionally left on their original colors for now —
+    /// also noted in PROJECT.md as a backlog item.
     var color: Color {
         switch self {
-        case .finalJeopardy: return .yellow
+        case .finalJeopardy: return .jeopardyFinal
         case .dailyDouble: return .orange
         case .multiplePeople: return .mint
         }

@@ -19,11 +19,11 @@ struct ClueCardView: View {
             }
             Text("$\(clue.points)")
                 .font(.system(size: 24, weight: .bold, design: .serif))
-                .foregroundColor(clue.isOpened ? .white.opacity(0.6) : .yellow)
+                .foregroundColor(clue.isOpened ? .white.opacity(0.6) : .jeopardyAccent)
                 .strikethrough(clue.isOpened)
         }
         .frame(maxWidth: .infinity, minHeight: 120)
-        .background(clue.isOpened ? Color.gray.opacity(0.55) : Color.blue)
+        .background(clue.isOpened ? Color.gray.opacity(0.55) : Color.jeopardyCard)
         .cornerRadius(8)
         .shadow(radius: 5)
         // --- CONTEXT MENU: edit or delete this clue ---

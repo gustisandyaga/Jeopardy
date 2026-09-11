@@ -51,7 +51,11 @@ struct BoardGridView: View {
                 boardGrid
             }
         }
-        .background(Color.black.opacity(0.05))
+        // The board's 60% — Parchment. Deliberately scoped to just this
+        // grid (not ContentView's outer window or ClueDetailView), so the
+        // rest of the app keeps following the system's light/dark mode.
+        // See PROJECT.md "Color Theme" addendum.
+        .background(Color.jeopardyBackground)
         .onAppear {
             selectedPoints = 0
         }

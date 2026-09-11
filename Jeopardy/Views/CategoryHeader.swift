@@ -38,8 +38,13 @@ struct CategoryHeader: View {
     /// — see file header. This is a cooler, slightly darker slate rather than a
     /// neutral grey, so a fully-answered category header still reads as
     /// distinct from an individual answered clue tile even at a glance.
+    ///
+    /// The active-state color now draws from the centralized theme
+    /// (`.jeopardyCard`, Oxford Blue) instead of a raw `Color.blue`, so it
+    /// stays in lockstep with `ClueCardView`'s card color automatically —
+    /// see Theme/JeopardyColors.swift.
     private var backgroundColor: Color {
-        isCompleted ? Color(red: 0.30, green: 0.33, blue: 0.38).opacity(0.85) : Color.blue.opacity(0.8)
+        isCompleted ? Color(red: 0.30, green: 0.33, blue: 0.38).opacity(0.85) : Color.jeopardyCard
     }
 
     var body: some View {

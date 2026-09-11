@@ -22,6 +22,10 @@ Swift file. Just create it in the right folder.
 ```
 Jeopardy/
   JeopardyApp.swift          — @main, registers SwiftData models
+  Theme/
+    JeopardyColors.swift      — centralized 60-30-10 palette constants +
+                                 Color(hex:) extension (see "Color Theme"
+                                 addendum below)
   Models/
     Clue.swift                — the core @Model: one question/answer card
     CategoryInfo.swift        — per-category metadata (currently just rules text)
@@ -441,3 +445,94 @@ content, not a session's roster/scores/state.
   evaluation by filtering `clues` per category (O(categories × clues)).
   Fine at current board sizes (a handful of categories × 5 clues each);
   would be worth caching/memoizing if boards ever grow much larger.
+
+# Addendum: Color Theme (60-30-10 Palette)
+
+The original clue card color combo (`Color.blue` #0088FF background with
+`.yellow` #FFCC00 text) scored a **2.33:1** contrast ratio on Coolors'
+Contrast Checker — well below WCAG's 3:1 minimum for large text, let alone
+the 4.5:1 minimum for normal text. This addendum documents the replacement
+palette, the reasoning behind each color, and exactly what changed.
+
+## New file
+
+```
+Theme/
+  JeopardyColors.swift    — Color(hex:) extension + four named palette
+                             constants, so every other view references
+                             .jeopardyCard / .jeopardyBackground /
+                             .jeopardyAccent / .jeopardyFinal instead of
+                             raw Color.blue/.yellow or hex literals
+```
+
+## The palette (60-30-10 rule)
+
+Colors were chosen by cross-referencing color psychology against the
+app's actual roles (clue cards = "knowledge," background = "canvas,"
+Final Jeopardy = "special occasion"), then validated for both meaning
+*and* contrast — not picked for looks alone.
+
+| Constant | Hex | Role | % | Why |
+|---|---|---|---|---|
+| `.jeopardyBackground` | `#F7F5F0` (Parchment) | Board grid backdrop | 60% | "Subtle, timeless" — a neutral canvas the cards read clearly against |
+| `.jeopardyCard` | `#002147` (Oxford Blue) | Standard clue cards, active category headers | 30% | Named directly for the University of Oxford — a direct "knowledge/academia" association, stronger fit than a generic navy, and it happens to also produce better contrast numbers |
+| `.jeopardyAccent` | `#E8B923` (Saffron) | Point values, small highlights only | 10% | "Sparks inspiration wherever it appears" — used sparingly, not as a large fill, since brighter golds ("radiant, catching every eye") were judged too overpowering at scale |
+| `.jeopardyFinal` | `#4B2E83` (Indigo Velvet) | Final Jeopardy announcement only | reserved | "Rich with mystery, dazzling" — deliberately held back from everyday use so Final Jeopardy reads as a distinct occasion rather than another blue card |
+
+**Contrast measurements** (WCAG relative luminance, same method that
+produced the 2.33:1 figure above):
+
+| Pair | Ratio | WCAG level |
+|---|---|---|
+| Saffron text on Oxford Blue card | 8.71:1 | AAA |
+| White text on Oxford Blue card | 16.05:1 | AAA |
+| White text on Indigo Velvet (Final Jeopardy) | 10.41:1 | AAA |
+| Dark text on Parchment background | ~15:1+ | AAA |
+
+Gold `#FFD700` was considered and dropped in favor of Saffron for the
+accent role — same "bright, energetic" psychology, but Gold's own
+description ("radiant, catching every eye") was judged too strong for
+something that needed to stay a 10%-scale detail rather than compete with
+the cards themselves.
+
+## Files changed
+
+- **`ClueCard.swift`** (`ClueCardView`) — card background `Color.blue` →
+  `.jeopardyCard`; unopened point-value text `.yellow` → `.jeopardyAccent`.
+  The opened/answered grey state is untouched — it's a state indicator,
+  not a theme color, same reasoning as `CategoryHeader`'s existing
+  completed-state grey.
+- **`CategoryHeader.swift`** — active-state tile background
+  `Color.blue.opacity(0.8)` → `.jeopardyCard` (full opacity — Oxford Blue
+  is dark enough on its own, unlike the original bright blue). The
+  completed-state slate grey is untouched, preserving the existing
+  deliberate distinction documented in that file.
+- **`BoardGridView.swift`** — grid background `Color.black.opacity(0.05)`
+  → `.jeopardyBackground` (Parchment). Scoped to just this view.
+- **`AnnouncementKind.swift`** — `.finalJeopardy`'s tint `.yellow` →
+  `.jeopardyFinal` (Indigo Velvet), so the Final Jeopardy announcement
+  screen is now visually distinct from Daily Double/Multiple People
+  rather than sharing a generic accent color.
+
+## Deliberately NOT touched (Parchment scope decision)
+
+Parchment (`.jeopardyBackground`) is scoped to **`BoardGridView` only**.
+`ContentView`'s outer window/`BottomPlayerBar` and `ClueDetailView` keep
+their existing `Color(NSColor.windowBackgroundColor)` / default system
+background, so the rest of the app continues to respect macOS light/dark
+mode. Revisit if a fully-themed (non-adaptive) look is wanted later.
+
+## Backlog — not restyled this pass
+
+- **Daily Double** (`.orange`) and **Multiple People** (`.mint`) tints in
+  `AnnouncementKind` were intentionally left as-is. They weren't part of
+  the original color-psychology analysis that drove this palette, and
+  restyling them wasn't a priority for this pass — worth a follow-up look
+  so all three announcement kinds share one consistent design language
+  rather than only Final Jeopardy being deliberately chosen.
+- Revealed-answer text (`ClueDetailView`, `.green`) and the gimmick badge
+  tints (`GimmickType.tint` — green for Phone-a-Friend, purple for 50:50)
+  are also untouched. `GimmickType.fiftyFifty`'s existing `.purple` is
+  worth a look later — it may already be close in spirit to
+  `.jeopardyFinal` and could be worth aligning intentionally instead of
+  coincidentally.
