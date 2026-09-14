@@ -22,8 +22,12 @@ struct BoardGridView: View {
 
     @State private var editingClue: Clue?
 
+    @AppStorage(BoardGridDensity.storageKey) private var gridDensityRaw: String = BoardGridDensity.comfortable.rawValue
+    private var gridDensity: BoardGridDensity {
+        BoardGridDensity(rawValue: gridDensityRaw) ?? .comfortable
+    }
+
     private let columnWidth: CGFloat = 200
-    private let columnSpacing: CGFloat = 20
 
     var categories: [String] {
         Array(Set(clues.map { $0.category })).sorted()
@@ -76,7 +80,7 @@ struct BoardGridView: View {
                     // matter how far down the Host scrolls to reach the
                     // $1000 row. Opaque background stops clue cards from
                     // visibly sliding underneath it while scrolling.
-                    HStack(alignment: .top, spacing: columnSpacing) {
+                    HStack(alignment: .top, spacing: gridDensity.columnSpacing) {
                         Spacer(minLength: 0)
                         ForEach(categories, id: \.self) { category in
                             CategoryHeader(title: category, isCompleted: isCategoryCompleted(category))
@@ -90,10 +94,10 @@ struct BoardGridView: View {
 
                     // Only this part scrolls vertically.
                     ScrollView(.vertical) {
-                        HStack(alignment: .top, spacing: columnSpacing) {
+                        HStack(alignment: .top, spacing: gridDensity.columnSpacing) {
                             Spacer(minLength: 0)
                             ForEach(categories, id: \.self) { category in
-                                VStack(spacing: 15) {
+                                VStack(spacing: gridDensity.rowSpacing) {
                                     let categoryClues = clues.filter { $0.category == category }
                                     ForEach(categoryClues) { clue in
                                         NavigationLink(destination: ClueDetailView(clue: clue, selectedPoints: $selectedPoints, activeClue: $activeClue)) {

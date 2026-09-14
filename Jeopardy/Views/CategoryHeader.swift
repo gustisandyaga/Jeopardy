@@ -26,6 +26,7 @@ struct CategoryHeader: View {
     let title: String
     var isCompleted: Bool = false
     @Environment(\.modelContext) private var modelContext
+    @AppStorage(BoardGridDensity.storageKey) private var gridDensityRaw: String = BoardGridDensity.comfortable.rawValue
 
     @State private var isShowingRules = false
     @State private var isEditingRules = false
@@ -34,31 +35,66 @@ struct CategoryHeader: View {
     @State private var isShowingRename = false
     @State private var renameDraft = ""
 
+    private var gridDensity: BoardGridDensity {
+        BoardGridDensity(rawValue: gridDensityRaw) ?? .comfortable
+    }
+
     /// Deliberately NOT the same value as ClueCardView's `Color.gray.opacity(0.55)`
     /// — see file header. This is a cooler, slightly darker slate rather than a
     /// neutral grey, so a fully-answered category header still reads as
     /// distinct from an individual answered clue tile even at a glance.
     ///
-    /// The active-state color now draws from the centralized theme
-    /// (`.jeopardyCard`, Oxford Blue) instead of a raw `Color.blue`, so it
-    /// stays in lockstep with `ClueCardView`'s card color automatically —
-    /// see Theme/JeopardyColors.swift.
-    private var backgroundColor: Color {
-        isCompleted ? Color(red: 0.30, green: 0.33, blue: 0.38).opacity(0.85) : Color.jeopardyCard
+    /// The active-state color draws from the centralized theme
+    /// (`.jeopardyCard` / `.jeopardyCardHighlight`, Oxford Blue) instead of a
+    /// raw `Color.blue`, so it stays in lockstep with `ClueCardView`'s card
+    /// color automatically — see Theme/JeopardyColors.swift. It's now a
+    /// gradient rather than a flat fill for the same reason ClueCardView's
+    /// is — see PROJECT.md's "Hermann Grid Mitigation" addendum, which this
+    /// header was originally left out of and has now been brought in line
+    /// with.
+    private var headerFill: LinearGradient {
+        if isCompleted {
+            let completedBase = Color(red: 0.30, green: 0.33, blue: 0.38)
+            return LinearGradient(
+                colors: [completedBase.opacity(0.72), completedBase.opacity(0.85)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        } else {
+            return LinearGradient(
+                colors: [.jeopardyCardHighlight, .jeopardyCard],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        }
     }
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
-            Text(title.uppercased())
-                .font(.system(size: 16, weight: .black))
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 4)
-                .frame(maxWidth: .infinity)
-                .frame(height: 60)
-                .background(backgroundColor)
-                .foregroundColor(isCompleted ? .white.opacity(0.6) : .white)
-                .cornerRadius(8)
-                .shadow(radius: 2)
+            ZStack {
+                // Same blurred-halo technique as ClueCardView — off in
+                // Tight density for the same reason (see
+                // BoardGridDensity.swift / ClueCard.swift).
+                if gridDensity.usesSoftEdge {
+                    RoundedRectangle(cornerRadius: gridDensity.cardCornerRadius)
+                        .fill(headerFill)
+                        .blur(radius: 10)
+                        .opacity(0.6)
+                }
+
+                Text(title.uppercased())
+                    .font(.system(size: 16, weight: .black))
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 4)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 60)
+                    .background(headerFill)
+                    .foregroundColor(isCompleted ? .white.opacity(0.6) : .white)
+                    .cornerRadius(gridDensity.cardCornerRadius)
+                    .shadow(color: .black.opacity(0.18), radius: 3, x: 0, y: 2)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 60)
 
             HStack(spacing: 6) {
                 Button {

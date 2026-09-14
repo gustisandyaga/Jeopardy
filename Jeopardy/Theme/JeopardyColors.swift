@@ -18,6 +18,11 @@
 //                                 category headers; chosen specifically
 //                                 for its "knowledge/academia" association
 //                                 over a more generic navy.
+//  - jeopardyCardHighlight      — A slightly lighter navy, used only as
+//                                 the top-left stop of ClueCardView's
+//                                 gradient fill (see "Hermann Grid
+//                                 Mitigation" addendum in PROJECT.md).
+//                                 Never used as a standalone fill color.
 //  - jeopardyAccent      (10%) — Saffron. Point values and small
 //                                 highlights only — deliberately NOT used
 //                                 as a large fill, since bright yellow/gold
@@ -48,8 +53,9 @@ extension Color {
         self.init(red: r, green: g, blue: b)
     }
 
-    static let jeopardyBackground = Color(hex: "#F7F5F0") // Parchment
-    static let jeopardyCard = Color(hex: "#002147")       // Oxford Blue
-    static let jeopardyAccent = Color(hex: "#E8B923")     // Saffron
-    static let jeopardyFinal = Color(hex: "#4B2E83")      // Indigo Velvet
+    static let jeopardyBackground = Color(hex: "#F7F5F0")      // Parchment
+    static let jeopardyCard = Color(hex: "#002147")            // Oxford Blue
+    static let jeopardyCardHighlight = Color(hex: "#123C69")   // Slightly lighter navy — gradient stop only
+    static let jeopardyAccent = Color(hex: "#E8B923")          // Saffron
+    static let jeopardyFinal = Color(hex: "#4B2E83")           // Indigo Velvet
 }

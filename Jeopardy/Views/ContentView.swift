@@ -9,6 +9,11 @@ struct ContentView: View {
     @State private var isConfirmingLoad = false
     @State private var isConfirmingReset = false
 
+    @AppStorage(BoardGridDensity.storageKey) private var gridDensityRaw: String = BoardGridDensity.comfortable.rawValue
+    private var gridDensity: BoardGridDensity {
+        BoardGridDensity(rawValue: gridDensityRaw) ?? .comfortable
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             NavigationStack {
@@ -47,6 +52,27 @@ struct ContentView: View {
                         }
                         .help("Load a board from a file, replacing the current one")
                         #endif
+
+                        // Accessibility option — lets the Host switch between the
+                        // default "Comfortable" board (moderate spacing, softened
+                        // card edges) and "Tight" (Heralen-style near-zero gaps).
+                        // Both independently reduce the Hermann grid illusion some
+                        // people see at the board's regular intersections; Tight
+                        // trades that softened look for a denser, gapless grid
+                        // instead. See PROJECT.md's "Hermann Grid Mitigation"
+                        // addendum and BoardGridDensity.swift.
+                        Menu {
+                            Picker("Board Layout", selection: $gridDensityRaw) {
+                                ForEach(BoardGridDensity.allCases) { density in
+                                    Label(density.title, systemImage: density.icon)
+                                        .tag(density.rawValue)
+                                }
+                            }
+                            .pickerStyle(.inline)
+                        } label: {
+                            Label("Board Layout", systemImage: gridDensity.icon)
+                        }
+                        .help("Board Layout: \(gridDensity.title) — \(gridDensity.subtitle). An accessibility option for reducing the grid effect some people see on the board.")
 
                         Button(role: .destructive) {
                             isConfirmingReset = true

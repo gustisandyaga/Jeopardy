@@ -30,6 +30,9 @@ Jeopardy/
     Clue.swift                — the core @Model: one question/answer card
     CategoryInfo.swift        — per-category metadata (currently just rules text)
     Players.swift             — a player's name + score
+    BoardGridDensity.swift    — accessibility preference for board spacing
+                                 (Comfortable vs. Tight — see "Hermann Grid
+                                 Mitigation" addendum below)
   Services/
     MediaStore.swift          — copies imported video files into Application
                                  Support so they survive sandbox/relaunch
@@ -536,3 +539,205 @@ mode. Revisit if a fully-themed (non-adaptive) look is wanted later.
   worth a look later — it may already be close in spirit to
   `.jeopardyFinal` and could be worth aligning intentionally instead of
   coincidentally.
+
+# Addendum: Hermann Grid Mitigation
+
+After the palette change above, the board started showing a Hermann grid
+illusion (phantom grey blobs at the intersections between clue cards) —
+reported as adding real cognitive load while playing. This addendum
+documents the cause and the fix.
+
+## Why it was happening
+
+The illusion needs three ingredients, and the board (post-palette-change)
+had all three:
+
+1. **A regular grid** — `BoardGridView` lays out clue cards at fixed
+   200×120 sizes with uniform 20pt column / 15pt row spacing. A textbook
+   repeating lattice.
+2. **Flat, uniform luminance fields on both sides of each edge** — Oxford
+   Blue cards (very dark) directly against Parchment (very light), both
+   flat single-color fills.
+3. **Hard, high-contrast, right-angle edges** — cards had only an 8pt
+   corner radius, so intersections were close to a sharp 90° cross, which
+   is the specific junction geometry the illusion depends on (retinal
+   ganglion cells' center-surround receptive fields get fully inhibited
+   only where the surround is entirely dark, i.e. at a crossing).
+
+**Specific to this codebase, not just illusion theory in general:** every
+`ClueCardView` also had `.shadow(radius: 5)` (a symmetric, ~33%-opacity
+black spread on all sides). At every grid intersection, the shadows from
+diagonally-adjacent cards were overlapping directly on top of each other —
+*real*, additive darkening layered exactly where the illusion also
+produces a phantom one, which is very likely why it read as unusually
+strong rather than being a subtle, ignorable effect.
+
+## Why the commonly-suggested fixes weren't used
+
+- **Wavy grid lines** — breaks the illusion by breaking alignment, but
+  Jeopardy specifically relies on that alignment: a Host or player scanning
+  "all the $600 clues across categories" needs them to line up in a
+  straight row. This is Nielsen's *recognition rather than recall* doing
+  real work, not just a decorative grid — worth preserving.
+- **Shrinking the grid** — board size is driven by however many
+  categories/clues a Host builds; there's no fixed "grid size" to shrink
+  without constraining what a Host can create.
+
+## What was changed instead (`ClueCardView` in `ClueCard.swift`)
+
+1. **`cornerRadius` 8 → 16.** Disrupts the sharp right-angle junction
+   geometry at each intersection without touching row/column alignment.
+2. **Shadow softened and made directional** — `.shadow(radius: 5)` →
+   `.shadow(color: .black.opacity(0.18), radius: 3, x: 0, y: 2)`. Lower
+   opacity plus a downward offset (instead of an even spread) means far
+   less shadow reaches into the gap on every side, so adjacent cards'
+   shadows no longer pile up at the corners.
+3. **Flat fill → subtle gradient.** Added `.jeopardyCardHighlight`
+   (`#123C69`, a slightly lighter navy) to `JeopardyColors.swift`, used
+   only as the gradient's top-left stop (`.jeopardyCardHighlight` →
+   `.jeopardyCard`, top-leading to bottom-trailing) via a new `cardFill`
+   computed property. The gradient is subtle enough not to read as an
+   intentional visual choice — its only purpose is to avoid a perfectly
+   flat luminance field on the dark side of each edge, since flat fields
+   on both sides of a hard boundary is what maximizes the retinal
+   response driving the illusion. The opened/answered state got the same
+   gradient treatment (`Color.gray.opacity(0.50)` → `0.60`) for
+   consistency, since it sits in the same grid.
+
+## Deliberately not changed
+
+- **`CategoryHeader.swift`** — left with its original (sharper) corner
+  radius/flat fill for now. It only forms one row along the top of the
+  grid rather than sitting at four-way intersections the way clue cards
+  do, so it wasn't the priority; revisit if the header row turns out to
+  still show the effect once the cards below it are fixed.
+- **Column/row spacing** — left at 20pt/15pt. Widening the "streets"
+  between cards further would weaken the illusion too, but costs board
+  density, and was treated as a lower-priority lever behind the three
+  changes above (which cost no layout space).
+
+## Follow-up: still noticeable after the first round
+
+The corner-radius/shadow/gradient changes above address *secondary*
+factors — junction geometry, real shadow-overlap darkening, and complete
+fill flatness — but the effect was still clearly noticeable afterward.
+That's a useful signal: the dominant cause is simpler and blunter than any
+of those refinements — raw luminance contrast (~16:1) between the cards
+and background, meeting at a genuinely hard edge, repeated at regular
+intervals. Rounding a corner or adding a subtle gradient doesn't change
+that underlying step.
+
+There are two levers that act on that root cause directly, rather than
+refining around it:
+
+- **Widen the gaps** between cards — the illusion's strength depends on
+  gap width relative to a retinal ganglion cell's receptive-field size, so
+  widening it enough moves the intersections out of the range that
+  triggers strong inhibition. Costs board density.
+- **Blur the edge itself** — rather than a hard, single-pixel-sharp
+  transition from card to background, render a soft ramp over a few
+  points. This is the actual mechanism behind why a blurred rendering
+  (World of Jeopardy, from the original reference comparison) showed a
+  much fainter version of the illusion than a crisp one.
+
+**Blur was chosen first** (density-neutral, cheaper to test). Implemented
+by restructuring `ClueCardView.body` into a `ZStack`:
+
+- A `RoundedRectangle` filled with the same `cardFill` gradient, blurred
+  (`radius: 10`) and set to 60% opacity, sits behind everything. Blur
+  renders the filled shape's color bleeding beyond its own original edges
+  — that's what produces the soft ramp into the surrounding gap, rather
+  than clipping at the shape boundary.
+- The existing sharp, fully-opaque card (now `cardContent`, unchanged
+  internally) sits on top at the same frame size, so the interior and all
+  text stay perfectly crisp — only the halo bleeding out past that top
+  layer's edges is soft.
+
+If this alone isn't sufficient, the next step in line is widening
+column/row spacing (`BoardGridView`'s `columnSpacing`/`VStack` spacing),
+previously deferred specifically because of its board-density cost.
+
+## Follow-up: CategoryHeader brought in line, plus an accessibility layout option
+
+The blur/gradient/corner-radius treatment above was originally applied to
+`ClueCardView` only — `CategoryHeader` was deliberately left with its
+original flat fill and 8pt radius, on the reasoning that it only forms one
+row along the top rather than sitting at four-way intersections. Once the
+blur halo proved effective, that reasoning no longer mattered enough to
+leave it inconsistent, so `CategoryHeader` now uses the same treatment:
+a `headerFill` gradient (`.jeopardyCardHighlight` → `.jeopardyCard` for
+the active state; the existing completed-state slate grey as a two-stop
+gradient instead of flat), the same blurred-halo `ZStack` structure, and
+the same density-driven corner radius. The completed/active state
+*distinction* itself (documented at length in this file's original "Color
+Theme" addendum and in `CategoryHeader.swift`'s header comment) is
+untouched — only the flat-vs-gradient/hard-vs-soft-edge treatment changed.
+
+### New: `BoardGridDensity` — an accessibility layout preference
+
+Not everyone is affected by the Hermann grid illusion the same way, and
+"subtle blur" isn't the only valid answer to it — a genuinely gapless
+layout (as seen in one of the reference boards compared against, Heralen's
+very tightly-packed grid) sidesteps the illusion entirely by removing the
+regular "streets" it depends on, at the cost of a denser, more solid-
+looking board. Rather than picking one aesthetic for everyone, this is now
+a user-facing toggle.
+
+**New file:** `Models/BoardGridDensity.swift` — a `String`-backed enum
+with two cases:
+
+- **`.comfortable`** (default) — the moderate-spacing, blurred-edge look
+  from the sections above. `columnSpacing: 20`, `rowSpacing: 15`,
+  `cardCornerRadius: 16`, `usesSoftEdge: true`.
+- **`.tight`** — Heralen-style near-zero gaps. `columnSpacing: 3`,
+  `rowSpacing: 3`, `cardCornerRadius: 6`, `usesSoftEdge: false` (the blur
+  halo is skipped entirely — with cards nearly touching, a blurred halo
+  would just muddy adjacent cards together rather than help; the near-zero
+  gap is already what defeats the illusion in this mode).
+
+Persisted via `@AppStorage(BoardGridDensity.storageKey)`, so the choice is
+remembered across launches. `BoardGridView`, `ClueCardView`, and
+`CategoryHeader` each read it directly (rather than threading a `Binding`
+down through every initializer) — all three already read from the
+environment/`@AppStorage` for other things, so this keeps the wiring
+consistent with the existing pattern rather than introducing a new one
+just for this preference.
+
+**UI:** `ContentView`'s toolbar gained a "Board Layout" menu (between Load
+Board and Reset Board) — a `Picker` bound to the same `@AppStorage` key,
+so switching it live immediately re-lays-out `BoardGridView` and restyles
+every `ClueCardView`/`CategoryHeader` without needing a relaunch.
+
+### Known follow-ups
+
+- Tight mode's smaller corner radius/no-halo styling was chosen to *look*
+  intentional rather than like a bug, but hasn't been visually compared
+  side-by-side against Heralen's actual reference board — worth a look to
+  confirm it reads the way that reference did.
+- No onboarding/first-run prompt surfaces this preference; a Host has to
+  discover the toolbar menu themselves. Consider surfacing it once,
+  contextually, if the Hermann grid issue turns out to affect a
+  meaningful number of people rather than being this one report.
+
+## Follow-up: fixed a real bug in CategoryHeader's halo sizing
+
+After building the above, Comfortable density showed a large, oversized
+grey-blue blur block sitting behind every category header — clearly wrong,
+not just an aesthetic judgment call.
+
+**Cause:** `ClueCardView`'s outer `ZStack` (halo + card) has
+`.frame(maxWidth: .infinity, minHeight: 120)` applied directly to it, so
+the blurred `RoundedRectangle` inside is bounded to that size before
+blurring. `CategoryHeader`'s equivalent inner `ZStack` (halo + `Text`) had
+**no frame of its own** — only the `Text` set `.frame(height: 60)` on
+itself, internally. With nothing constraining the `RoundedRectangle`
+directly, SwiftUI proposed it whatever height was available in that
+column, which in the header row (no vertical `ScrollView` constraint at
+that point in the layout) is effectively unbounded — so it stretched into
+a large block instead of a 60pt-tall pill.
+
+**Fix:** added `.frame(maxWidth: .infinity).frame(height: 60)` to the
+inner `ZStack` itself, mirroring exactly what `ClueCardView` already does
+— bounding the whole halo+content group to the pill's actual size before
+the blur is applied, rather than relying on an inner child's own frame to
+constrain everything around it.
