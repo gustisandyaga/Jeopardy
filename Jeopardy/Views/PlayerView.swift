@@ -15,13 +15,19 @@ struct PlayerView: View {
     @State private var isAdjustingScore = false
     @State private var isConfirmingReset = false
     
+    // Consider this to be in ContentView
+    @FocusState private var nameFocus: Bool
+    
     var body: some View {
         VStack(spacing: 12) {
             TextField("Name", text: $player.name)
                 .textFieldStyle(.roundedBorder)
                 .multilineTextAlignment(.center)
+                .focused(self.$nameFocus, equals: true)
 
-            GimmickBar(player: player, activeClue: activeClue)
+            // We hide this for now
+            // CONSIDER BRINGING IT BACK WHEN FUNCTION IS IMPLEMENTED
+            // GimmickBar(player: player, activeClue: activeClue)
             
             Text("\(player.score)")
                 .font(.system(size: 28, weight: .bold, design: .monospaced))
@@ -82,6 +88,10 @@ struct PlayerView: View {
         }
         .sheet(isPresented: $isAdjustingScore) {
             ScoreAdjustmentView(player: player, suggestedWager: currentCluePoints)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            nameFocus = false
         }
     }
 

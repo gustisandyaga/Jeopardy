@@ -363,6 +363,9 @@ content, not a session's roster/scores/state.
   (no change needed — this was never previously documented as a known
   limitation, since it was an undiscovered layout bug rather than a
   deliberate tradeoff)
+  
+- Added FocusState for the TextField for Player names
+- Hid it for now, due to not being priority  
 
 --- What was implemented (append at end) ---
 

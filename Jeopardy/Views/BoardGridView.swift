@@ -112,6 +112,7 @@ struct BoardGridView: View {
                                     }
                                 }
                                 .frame(width: columnWidth)
+                                .padding(.top, 30)
                             }
                             Spacer(minLength: 0)
                         }
