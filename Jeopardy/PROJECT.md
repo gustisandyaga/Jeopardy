@@ -744,3 +744,102 @@ inner `ZStack` itself, mirroring exactly what `ClueCardView` already does
 — bounding the whole halo+content group to the pill's actual size before
 the blur is applied, rather than relying on an inner child's own frame to
 constrain everything around it.
+
+# Addendum: Clue Editor Redesign (inline editing, unified media, undo/discard)
+
+## What changed
+
+The old `ClueFormView` (`AddClueView.swift`) — a `Form`-in-a-`.sheet` used
+for both Add and Edit — has been removed. Editing an existing clue now
+happens **inline inside `ClueDetailView` itself**: tapping the pencil swaps
+the read-only question/answer/media display for the same editable
+component in place, with no navigation and no modal. There is exactly one
+deliberate exception: creating a brand-new clue (or a first Final Jeopardy
+clue) still uses a pushed screen, `AddClueScreen`, since there's no
+existing card/screen to expand into when nothing exists yet.
+
+## New files
+Models/
+ClueDraft.swift — plain (non-SwiftData) value type mirroring
+every editable Clue field; MediaAttachment
+enum (exactly one of image/audio/video/none,
+replacing three independent optionals);
+ClueKind (standard/dailyDouble/multiplePeople
+— Multiple Choice deliberately stays a
+separate bool, not a 4th case, since a clue
+can be both); ClueEditField for FocusState.
+Views/ClueCard/Edit/
+ClueEditorView.swift — the actual field UI, shared by both the
+inline-edit path and AddClueScreen
+AddClueScreen.swift — pushed screen wrapping ClueEditorView,
+used only when there's no existing clue yet
+
+`AddClueView.swift` was deleted.
+
+## Why a `ClueDraft` value type instead of loose `@State`
+
+The old form tracked ~15 separate `@State` variables. Undo and
+discard-confirmation both need one clear question answered — "has anything
+changed since editing started?" — which is trivial with a single
+`Equatable` struct (`draft != snapshot`) and effectively impossible to get
+right by hand across 15 independent variables. `MediaAttachment` similarly
+turns "at most one of image/audio/video" from a convention every call site
+has to remember into something the type system enforces.
+
+## Heuristic-driven decisions
+
+- **#1 Visibility of system status** — `ClueEditorView` always shows a
+  banner reading "Creating New Clue" or "Editing Clue" at the top, so the
+  Host never has ambiguity about which mode they're in.
+- **#3 User control and freedom** — `ClueEditorView` keeps a bounded
+  (50-entry) stack of previous `ClueDraft` snapshots and wires Cmd+Z to pop
+  the most recent one back onto the draft. Separately, `ClueDetailView`
+  captures a snapshot (`editSnapshot`) the moment editing starts; Cancel
+  compares the live draft against it and only shows a "Save Changes /
+  Discard Changes / Keep Editing" confirmation dialog when they actually
+  differ — an unedited Cancel exits immediately with no interruption.
+  **Known limitation:** because the undo stack snapshots on every
+  `onChange(of: draft)`, typing in the Question/Answer `TextEditor` pushes
+  one snapshot per keystroke, so undo currently feels character-level
+  rather than action-level. Also unverified: whether Cmd+Z is intercepted
+  by `TextEditor`'s own native undo before it reaches this handler while a
+  text field has focus — needs testing in Xcode (no compiler available in
+  the environment these changes were written in).
+- **#6 Recognition rather than recall** — Editing renders inside the exact
+  same screen/chrome as viewing (`ClueDetailView`), so the Host never loses
+  the surrounding board/category context the way the old sheet did.
+- **#9 Help users recognize, diagnose, and recover from errors** — Every
+  media-import failure path (unreadable file, unsupported extension, failed
+  video copy, failed drop, failed paste) now sets a message shown via
+  `.alert(...)`, replacing the old `try?`-and-silently-return-nil pattern
+  that gave the Host no feedback at all when an attach failed.
+- **#10 Help and documentation** — A toggleable "?" toolbar button reveals
+  one short, plain-language caption per section (what Category/Points does,
+  what Multiple Choice needs, etc.), hidden by default so it doesn't add
+  permanent visual noise for a Host who already knows the form.
+- **Gestalt — common region** — Each conceptual group (General Info, Clue
+  Type, Multiple Choice, Media, Clue Details) is wrapped in its own
+  rounded, tinted container (`sectionContainer(...)`) rather than relying
+  on whitespace alone, and the Media section collapsed from three separate
+  drop zones (one each for image/audio/video, which visually implied three
+  independent choices) into a single zone whose boundary now matches the
+  actual "pick at most one" rule.
+
+## Known follow-ups / not done here
+
+- **AddClueScreen is a deliberate exception**, not full inline editing —
+  flagged for a possible future revisit: an inline "draft card" pinned to
+  the top of `BoardGridView`'s grid (rather than a pushed screen) so even
+  clue *creation* never leaves the board view. Not implemented this pass.
+- Undo granularity (character-level, see above) and the Cmd+Z/native-
+  text-undo interaction are both unverified without a real Xcode build —
+  test before relying on either.
+- The confirmation-dialog discard flow only intercepts the *in-editor*
+  Cancel action. It does **not** intercept the outer app's own back
+  navigation if a Host navigates away from the whole `ClueDetailView`
+  screen (e.g. via the board) while mid-edit without pressing Cancel first
+  — that would need hiding/overriding the system back button, which was
+  judged out of scope for this pass.
+- `FinalJeopardySectionView`'s dedicated row-level "Edit" button was
+  removed; editing a Final Jeopardy clue now goes through the same
+  navigate-in-then-tap-pencil flow as any other clue, for consistency.
