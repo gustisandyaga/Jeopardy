@@ -63,8 +63,8 @@ struct BoardGridView: View {
         .onAppear {
             selectedPoints = 0
         }
-        .sheet(item: $editingClue) { clue in
-            ClueFormView(mode: .edit(clue))
+        .navigationDestination(item: $editingClue) { clue in
+            ClueDetailView(clue: clue, selectedPoints: $selectedPoints, activeClue: $activeClue, startInEditMode: true)
         }
     }
 

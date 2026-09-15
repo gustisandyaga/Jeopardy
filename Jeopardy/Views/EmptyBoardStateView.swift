@@ -36,12 +36,13 @@ struct EmptyBoardStateView: View {
             VStack(spacing: 8) {
                 Image(systemName: "square.grid.3x3.topleft.filled")
                     .font(.system(size: 40, weight: .semibold))
-                    .foregroundColor(.secondary.opacity(0.5))
+                    .foregroundColor(.gray.opacity(0.7))
                 Text("Your Board is Empty")
                     .font(.title2.bold())
+                    .foregroundColor(.black)
                 Text("Get started with a sample board, load a saved one, or add your first clue.")
                     .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(.black)
                     .multilineTextAlignment(.center)
             }
 
@@ -126,4 +127,20 @@ private struct EmptyStateTile: View {
             withAnimation(.easeOut(duration: 0.15)) { isHovering = hovering }
         }
     }
+}
+
+#Preview("Full Options") {
+    EmptyBoardStateView(
+        onCreateDummyBoard: {},
+        onImportBoard: {}, // Providing empty brackets shows the tile
+        onAddClue: {}
+    )
+}
+
+#Preview("No Import Tile") {
+    EmptyBoardStateView(
+        onCreateDummyBoard: {},
+        onImportBoard: nil, // Passing nil hides the tile
+        onAddClue: {}
+    )
 }

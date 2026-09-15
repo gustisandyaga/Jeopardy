@@ -279,19 +279,30 @@ struct ClueDetailView: View {
     let clue: Clue
     @Binding var selectedPoints: Int
     @Binding var activeClue: Clue?
+    var startInEditMode: Bool = false
+
+    @Environment(\.modelContext) private var modelContext
+    @Query private var existingClues: [Clue]
+
     @State private var showAnswer = false
-    @State private var isEditing = false
+    @State private var isEditing: Bool
+    @State private var editDraft = ClueDraft()
+    @State private var editSnapshot = ClueDraft()
+    @State private var hasLoadedEditDraft = false
+    @State private var isShowingDiscardConfirm = false
 
     // Shown BEFORE the question/answer for any clue that calls for it
     // (Daily Double, Multiple People Can Answer, or Final Jeopardy). See
     // Clue.needsAnnouncement / ClueAnnouncementView.
     @State private var isShowingAnnouncement: Bool
 
-    init(clue: Clue, selectedPoints: Binding<Int>, activeClue: Binding<Clue?>) {
+    init(clue: Clue, selectedPoints: Binding<Int>, activeClue: Binding<Clue?>, startInEditMode: Bool = false) {
         self.clue = clue
         self._selectedPoints = selectedPoints
         self._activeClue = activeClue
-        self._isShowingAnnouncement = State(initialValue: clue.needsAnnouncement)
+        self.startInEditMode = startInEditMode
+        self._isEditing = State(initialValue: startInEditMode)
+        self._isShowingAnnouncement = State(initialValue: clue.needsAnnouncement && !startInEditMode)
     }
 
     public var announcementKind: AnnouncementKind? {
@@ -300,10 +311,16 @@ struct ClueDetailView: View {
         if clue.isMultiplePeople { return .multiplePeople }
         return nil
     }
-    
+
+    private var existingCategories: [String] {
+        Array(Set(existingClues.map { $0.category })).sorted()
+    }
+
     var body: some View {
         Group {
-            if isShowingAnnouncement, let announcementKind {
+            if isEditing {
+                editingContent
+            } else if isShowingAnnouncement, let announcementKind {
                 ClueAnnouncementView(kind: announcementKind) {
                     withAnimation(.easeInOut) {
                         isShowingAnnouncement = false
@@ -313,12 +330,73 @@ struct ClueDetailView: View {
                 clueContent
             }
         }
-        .onAppear { activeClue = clue }
+        .onAppear {
+            activeClue = clue
+            if isEditing, !hasLoadedEditDraft {
+                editDraft = ClueDraft(from: clue)
+                editSnapshot = editDraft
+                hasLoadedEditDraft = true
+            }
+        }
         .onDisappear {
             selectedPoints = 0
             activeClue = nil
         }
     }
+
+    // MARK: - Inline editing (#1, #3, #6, #9, #10 — see ClueEditorView.swift)
+
+    private var editingContent: some View {
+        ClueEditorView(
+            draft: $editDraft,
+            isFinalJeopardyMode: clue.isFinalJeopardy,
+            isNewClue: false,
+            existingCategories: existingCategories,
+            onSave: saveEdits,
+            onCancel: requestCancelEdits
+        )
+        .confirmationDialog(
+            "You have unsaved changes to this clue.",
+            isPresented: $isShowingDiscardConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Save Changes") { saveEdits() }
+            Button("Discard Changes", role: .destructive) { discardEdits() }
+            Button("Keep Editing", role: .cancel) {}
+        }
+    }
+
+    private func startEditing() {
+        editDraft = ClueDraft(from: clue)
+        editSnapshot = editDraft
+        hasLoadedEditDraft = true
+        isEditing = true
+    }
+
+    /// (#3 User control and freedom) — only interrupts with a confirmation
+    /// when the draft actually differs from what editing started with.
+    private func requestCancelEdits() {
+        if editDraft != editSnapshot {
+            isShowingDiscardConfirm = true
+        } else {
+            isEditing = false
+        }
+    }
+
+    private func discardEdits() {
+        if case .video(let filename) = editDraft.media, filename != clue.videoFileName {
+            MediaStore.deleteVideo(filename: filename)
+        }
+        isEditing = false
+    }
+
+    private func saveEdits() {
+        editDraft.apply(to: clue, isFinalJeopardy: clue.isFinalJeopardy)
+        try? modelContext.save()
+        isEditing = false
+    }
+
+    // MARK: - Read-only clue display (unchanged from before)
 
     private var clueContent: some View {
         VStack(spacing: 20) {
@@ -335,7 +413,7 @@ struct ClueDetailView: View {
                 }
                 Spacer()
                 Button {
-                    isEditing = true
+                    startEditing()
                 } label: {
                     Image(systemName: "pencil.circle")
                 }
@@ -352,18 +430,17 @@ struct ClueDetailView: View {
                     .multilineTextAlignment(.center)
             }
 
-            // Media content appears here
             ClueMediaView(clue: clue)
 
             Text(clue.question)
                 .font(.system(size: 32, weight: .bold, design: .serif))
                 .multilineTextAlignment(.center)
-            
+
             if clue.isMultipleChoice {
-                            MultipleChoiceOptionsView(clue: clue, showAnswer: showAnswer) {
-                                revealAnswer()
-                            }
-                        }
+                MultipleChoiceOptionsView(clue: clue, showAnswer: showAnswer) {
+                    revealAnswer()
+                }
+            }
 
             if showAnswer {
                 VStack(spacing: 12) {
@@ -394,19 +471,13 @@ struct ClueDetailView: View {
             .controlSize(.large)
         }
         .padding()
-        .sheet(isPresented: $isEditing) {
-            ClueFormView(mode: clue.isFinalJeopardy ? .finalJeopardy(clue) : .edit(clue))
-        }
     }
 
-    /// Shared by the "Reveal Answer" button and tapping the correct
-    /// multiple-choice option — both should have the identical effect.
     private func revealAnswer() {
         guard !showAnswer else { return }
         withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
             showAnswer = true
             SoundManager.instance.playSound(named: "reveal_ding")
-            // ^ Make sure "reveal_ding" matches your file name in Xcode
             clue.isOpened = true
         }
     }

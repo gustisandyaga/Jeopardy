@@ -18,8 +18,6 @@ struct FinalJeopardySectionView: View {
     @Binding var selectedPoints: Int
     @Binding var activeClue: Clue?
 
-    @State private var isPresentingForm = false
-
     private var finalClue: Clue? { finalJeopardyClues.first }
 
     var body: some View {
@@ -30,25 +28,18 @@ struct FinalJeopardySectionView: View {
                 Text("FINAL JEOPARDY").font(.system(size: 14, weight: .heavy))
                 Spacer()
 
-                if finalClue != nil {
-                    Button {
-                        isPresentingForm = true
+                if finalClue == nil {
+                    NavigationLink {
+                        AddClueScreen(isFinalJeopardy: true)
                     } label: {
-                        Label("Edit", systemImage: "pencil")
+                        Label("Add Final Jeopardy Clue", systemImage: "plus.circle")
                     }
                     .buttonStyle(.plain)
-
+                } else {
                     Button(role: .destructive) {
                         deleteFinalClue()
                     } label: {
                         Label("Remove", systemImage: "trash")
-                    }
-                    .buttonStyle(.plain)
-                } else {
-                    Button {
-                        isPresentingForm = true
-                    } label: {
-                        Label("Add Final Jeopardy Clue", systemImage: "plus.circle")
                     }
                     .buttonStyle(.plain)
                 }
@@ -63,7 +54,7 @@ struct FinalJeopardySectionView: View {
                                 .font(.subheadline)
                                 .lineLimit(2)
                                 .foregroundColor(.primary)
-                            Text(finalClue.isOpened ? "Opened" : "Not opened yet")
+                            Text(finalClue.isOpened ? "Opened" : "Not opened yet — tap to open or edit")
                                 .font(.caption2)
                                 .foregroundColor(.secondary)
                         }
@@ -90,9 +81,6 @@ struct FinalJeopardySectionView: View {
             }
         }
         .padding(.vertical, 8)
-        .sheet(isPresented: $isPresentingForm) {
-            ClueFormView(mode: .finalJeopardy(finalClue))
-        }
     }
 
     private func deleteFinalClue() {

@@ -84,8 +84,8 @@ struct ContentView: View {
                     }
                 }
                 // This triggers the Add Clue pop-up
-                .sheet(isPresented: $isShowingAddClue) {
-                    ClueFormView(mode: .add)
+                .navigationDestination(isPresented: $isShowingAddClue) {
+                    AddClueScreen()
                 }
                 #if os(macOS)
                 .confirmationDialog(
