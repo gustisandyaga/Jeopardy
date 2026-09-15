@@ -2,22 +2,19 @@
 //  AddClueScreen.swift
 //  Jeopardy
 //
-//  Created by Gusti Sandyaga Putra Wardhana on 15/09/26.
-//
-
-
-//
-//  AddClueScreen.swift
-//  Jeopardy
-//
 //  Pushed (not modal) screen for creating a brand-new clue or a new Final
 //  Jeopardy clue. This is the one deliberate exception to "inline, no
 //  separate screen": there is no existing card/screen to expand into when
 //  nothing exists yet. It reuses the exact same ClueEditorView used inline
 //  by ClueDetailView, so the experience is visually identical even though
-//  this specific case is a push rather than an in-place swap. See
-//  PROJECT.md's "Clue Editor Redesign" addendum for a backlog note about
-//  revisiting this with an inline "draft card" pinned to the board later.
+//  this specific case is a push rather than an in-place swap.
+//
+//  Uses the SAME single back-chevron-as-cancel pattern as ClueDetailView:
+//  backing out with unsaved (non-blank) fields shows a Save/Discard/Keep
+//  Editing dialog rather than silently losing what was typed (#3 User
+//  control and freedom). "Dirty" here means "different from a brand-new
+//  blank draft" rather than "different from a saved Clue", since there's
+//  no existing Clue yet to compare against.
 //
 
 import SwiftUI
@@ -31,6 +28,9 @@ struct AddClueScreen: View {
     @Query private var existingClues: [Clue]
 
     @State private var draft = ClueDraft()
+    @State private var isShowingDiscardConfirm = false
+
+    private let blankDraft = ClueDraft()
 
     private var existingCategories: [String] {
         Array(Set(existingClues.map { $0.category })).sorted()
@@ -43,9 +43,18 @@ struct AddClueScreen: View {
             isNewClue: true,
             existingCategories: existingCategories,
             onSave: save,
-            onCancel: cancel
+            onCancel: requestCancel
         )
         .navigationTitle(isFinalJeopardy ? "New Final Jeopardy Clue" : "New Clue")
+        .confirmationDialog(
+            "You have unsaved fields for this new clue.",
+            isPresented: $isShowingDiscardConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Save Changes") { save() }
+            Button("Discard Changes", role: .destructive) { discard() }
+            Button("Keep Editing", role: .cancel) {}
+        }
     }
 
     private func save() {
@@ -55,7 +64,21 @@ struct AddClueScreen: View {
         dismiss()
     }
 
-    private func cancel() {
+    /// (#3) Only interrupts with a confirmation when something was
+    /// actually typed/attached — backing out of a still-blank form exits
+    /// immediately with no prompt.
+    private func requestCancel() {
+        if draft != blankDraft {
+            isShowingDiscardConfirm = true
+        } else {
+            dismiss()
+        }
+    }
+
+    /// Cleans up a freshly-imported video only once "Discard" is the
+    /// Host's confirmed choice — never earlier (see ClueEditorView's
+    /// cancelTapped() comment for why doing this any sooner is a bug).
+    private func discard() {
         if case .video(let filename) = draft.media {
             MediaStore.deleteVideo(filename: filename)
         }

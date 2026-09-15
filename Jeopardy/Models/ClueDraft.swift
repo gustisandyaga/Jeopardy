@@ -63,12 +63,24 @@ enum ClueKind: String, CaseIterable, Identifiable, Equatable {
 /// authoritative tab order, and lets Save/Cmd+S explicitly drop focus
 /// before validating rather than leaving whatever field was last active
 /// still "live" (WCAG 2.4.3 Focus Order).
+/// Every case here gets a `.focused($focusedField, equals:)` somewhere in
+/// ClueEditorView, in this declaration order — that's what defines the
+/// keyboard Tab order end to end (category -> points -> type -> multiple
+/// choice toggle -> [options if enabled] -> media -> question -> answer).
+/// Unlike a plain TextField-only focus enum, this also covers non-text
+/// controls (Picker, Toggle, Button) so Tab-only keyboard use never gets
+/// stuck skipping over them.
 enum ClueEditField: Hashable {
     case category
     case customPoints
+    case clueType
+    case multipleChoiceToggle
+    case choiceOption(Int)
+    case addOptionButton
+    case correctAnswerPicker
+    case mediaAttachButton
     case question
     case answer
-    case choiceOption(Int)
 }
 
 struct ClueDraft: Equatable {

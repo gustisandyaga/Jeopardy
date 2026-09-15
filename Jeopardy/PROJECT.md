@@ -843,3 +843,67 @@ has to remember into something the type system enforces.
 - `FinalJeopardySectionView`'s dedicated row-level "Edit" button was
   removed; editing a Final Jeopardy clue now goes through the same
   navigate-in-then-tap-pencil flow as any other clue, for consistency.
+
+# Addendum: Clue Editor Redesign — refinements (back button, focus, hint)
+
+Follow-up to the "Clue Editor Redesign" addendum above, addressing four
+issues found once the first version was reviewed against the Host's
+original intent.
+
+## 1. Back chevron IS the cancel button, not an additional one
+
+The editor no longer shows both a system back chevron and a separate
+"Cancel" toolbar button. `.navigationBarBackButtonHidden(true)` hides the
+automatic one; a single custom chevron in the `.navigation` toolbar
+placement calls the exact same `onCancel()` closure the old "Cancel"
+button used. **Bug fixed in the same pass:** the previous `cancelTapped()`
+deleted any freshly-attached video file immediately, before the
+Save/Discard/Keep-Editing dialog even asked the Host what they wanted — if
+they'd picked "Save Changes," the video would already be gone from disk.
+Video cleanup now only happens inside the actual "Discard Changes" branch
+in `ClueDetailView.discardEdits()` / `AddClueScreen.discard()`, never on
+the initial back-tap.
+
+**Unverified:** whether `.navigationBarBackButtonHidden(true)` fully
+suppresses the native chevron on a macOS-hosted `NavigationStack` (vs. its
+more established iOS/UIKit-derived behavior) hasn't been confirmed in a
+real Xcode build — check for a duplicate/ghost back control before relying
+on this.
+
+**Need to fix:** When going back, even if the board is actually not "completed" in the sense that it's supposed to be save-able, it still saves the board regardless, even with empty Q & As
+
+## 2. Cmd+S hint
+
+The status banner (#1 Visibility of system status) now shows "Press ⌘S to
+save" as a secondary caption under "Creating New Clue" / "Editing Clue",
+so the shortcut isn't undiscoverable.
+
+## 3. Click-away-to-unfocus
+
+`ClueEditorView`'s content now has `.contentShape(Rectangle())` +
+`.onTapGesture { focusedField = nil }` on its outer VStack — the identical
+pattern already used by `PlayerView`'s name `TextField` (`nameFocus =
+false` on background tap). Without this, tapping empty space inside the
+editor didn't drop focus from whatever field was last active, since
+SwiftUI doesn't do that automatically.
+
+## 4. Full keyboard Tab order, not just text fields
+
+`ClueEditField` (in `ClueDraft.swift`) expanded from 4 cases (all text
+fields) to 10, covering the segmented Type picker, the Multiple Choice
+toggle, the Add Option button, the Correct Answer picker, and the Attach
+Media button — every one now carries a `.focused($focusedField, equals:)`
+binding in the same order they're declared, giving one deliberate Tab path:
+category → points (only if Custom) → clue type → multiple choice toggle →
+[choice options → add option → correct answer, if enabled] → attach media
+→ question → answer.
+
+**Unverified / known risk:** macOS has historically gated whether
+non-text controls (buttons, checkboxes, segmented controls) participate in
+Tab order behind the system-level "Full Keyboard Access" preference
+(System Settings → Keyboard), which an app can't override. SwiftUI's
+`.focused()` binding is expected to drive traversal regardless, but this
+needs hands-on testing in a real build — if any control gets skipped
+during Tab, that's the first place to look.
+**Tested**: Risk confirmed, it doesn't go to non-text controls
+

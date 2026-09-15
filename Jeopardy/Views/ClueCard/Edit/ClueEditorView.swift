@@ -2,14 +2,6 @@
 //  ClueEditorView.swift
 //  Jeopardy
 //
-//  Created by Gusti Sandyaga Putra Wardhana on 15/09/26.
-//
-
-
-//
-//  ClueEditorView.swift
-//  Jeopardy
-//
 //  The shared editing surface used both inline inside ClueDetailView (when
 //  editing an existing clue) and by AddClueScreen (when creating a new
 //  one). Operates purely on a ClueDraft binding — the caller decides what
@@ -17,10 +9,12 @@
 //
 //  Heuristic notes (see PROJECT.md's "Clue Editor Redesign" addendum for
 //  the full write-up):
-//   - #1 Visibility of system status  -> statusBanner
-//   - #3 User control and freedom     -> Cmd+Z undo stack, Cancel routes
-//                                         through the caller's discard/
-//                                         save confirmation when dirty
+//   - #1 Visibility of system status  -> statusBanner (mode + Cmd+S hint)
+//   - #3 User control and freedom     -> Cmd+Z undo stack; the back
+//                                         chevron (NOT a separate Cancel
+//                                         button) routes through the
+//                                         caller's discard/save
+//                                         confirmation when dirty
 //   - #6 Recognition rather than recall -> reused by ClueDetailView in place
 //   - #9 Error recognition/recovery   -> media import failures surface an
 //                                         alert instead of silently no-op'ing
@@ -30,6 +24,13 @@
 //                                         conceptual group its own visible
 //                                         boundary instead of relying on
 //                                         whitespace alone
+//   - WCAG 2.4.3 Focus Order          -> ClueEditField covers every
+//                                         actionable control (not just
+//                                         text fields), so Tab moves
+//                                         through Picker/Toggle/Button too
+//   - WCAG-adjacent (click-away)      -> tapping empty space drops focus,
+//                                         same pattern as PlayerView's
+//                                         name field
 //
 
 import SwiftUI
@@ -45,6 +46,10 @@ struct ClueEditorView: View {
     let isNewClue: Bool
     let existingCategories: [String]
     let onSave: () -> Void
+    /// Called when the Host backs out. The caller (ClueDetailView /
+    /// AddClueScreen) owns the actual dirty-check + confirmation dialog —
+    /// this view never deletes anything on the Host's behalf before that
+    /// decision is made (see cancelTapped()).
     let onCancel: () -> Void
 
     @FocusState private var focusedField: ClueEditField?
@@ -85,6 +90,13 @@ struct ClueEditorView: View {
                 questionAnswerSection
             }
             .padding(24)
+            // (#3 / click-away-to-unfocus) Tapping any non-interactive area
+            // drops keyboard focus — same pattern PlayerView already uses
+            // for its name field. Buttons/fields still consume their own
+            // taps normally; this only catches taps that land on empty
+            // space between them.
+            .contentShape(Rectangle())
+            .onTapGesture { focusedField = nil }
         }
         .frame(minWidth: 480, minHeight: 560)
         .onAppear {
@@ -118,9 +130,22 @@ struct ClueEditorView: View {
             Text(mediaErrorMessage ?? "")
         }
         .sheet(isPresented: $isCropping) { cropSheet }
+        // NOTE: hides the system-provided back chevron so the single
+        // custom one below (.navigation placement) is the only back/cancel
+        // affordance — see file header. This modifier's cross-platform
+        // behavior on a macOS-hosted NavigationStack hasn't been confirmed
+        // in a real Xcode build; verify the native chevron is actually
+        // gone (not just visually duplicated) before relying on it.
+        .navigationBarBackButtonHidden(true)
         .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button("Cancel") { cancelTapped() }
+            ToolbarItem(placement: .navigation) {
+                Button {
+                    cancelTapped()
+                } label: {
+                    Image(systemName: "chevron.left")
+                }
+                .accessibilityLabel("Back")
+                .help(isNewClue ? "Discard this new clue" : "Back (will ask before discarding unsaved changes)")
             }
             ToolbarItem(placement: .confirmationAction) {
                 Button(isNewClue ? "Add" : "Save") { save() }
@@ -142,8 +167,13 @@ struct ClueEditorView: View {
     private var statusBanner: some View {
         HStack(spacing: 8) {
             Image(systemName: isNewClue ? "plus.circle.fill" : "pencil.circle.fill")
-            Text(isNewClue ? "Creating New Clue" : "Editing Clue")
-                .font(.headline)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(isNewClue ? "Creating New Clue" : "Editing Clue")
+                    .font(.headline)
+                Text("Press ⌘S to save")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
             Spacer()
         }
         .padding(10)
@@ -210,6 +240,7 @@ struct ClueEditorView: View {
                 }
             }
             .pickerStyle(.segmented)
+            .focused($focusedField, equals: .clueType)
         }
     }
 
@@ -221,6 +252,7 @@ struct ClueEditorView: View {
             help: "Turn this on to give tappable answer options instead of, or alongside, free text. Needs at least 2 filled-in options."
         ) {
             Toggle("Enable multiple choice", isOn: $draft.isMultipleChoice)
+                .focused($focusedField, equals: .multipleChoiceToggle)
 
             if draft.isMultipleChoice {
                 ForEach(draft.choiceOptions.indices, id: \.self) { idx in
@@ -246,6 +278,7 @@ struct ClueEditorView: View {
                     Label("Add Option", systemImage: "plus.circle")
                 }
                 .disabled(draft.choiceOptions.count >= 8)
+                .focused($focusedField, equals: .addOptionButton)
 
                 Picker("Correct Answer", selection: $draft.correctChoiceIndex) {
                     ForEach(draft.choiceOptions.indices, id: \.self) { idx in
@@ -254,6 +287,7 @@ struct ClueEditorView: View {
                         }
                     }
                 }
+                .focused($focusedField, equals: .correctAnswerPicker)
             }
         }
     }
@@ -279,6 +313,7 @@ struct ClueEditorView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     HStack {
                         Button("Attach Media") { isImportingMedia = true }
+                            .focused($focusedField, equals: .mediaAttachButton)
                         #if os(macOS)
                         Button("Paste") { pasteMediaFromPasteboard() }
                         #endif
@@ -325,7 +360,7 @@ struct ClueEditorView: View {
 
     private var mediaIcon: String {
         switch draft.media {
-        case .none: return "paperclip.badge.plus"
+        case .none: return "paperclip.badge.ellipsis"
         case .image: return "photo.fill"
         case .audio: return "waveform"
         case .video: return "video.fill"
@@ -353,7 +388,10 @@ struct ClueEditorView: View {
     /// Deletes a freshly-imported video from disk when it's being replaced
     /// or cleared — but only if it isn't the clue's already-persisted
     /// video (tracked via `initialVideoFilename`), same care the old
-    /// ClueFormView took to avoid orphaning files.
+    /// ClueFormView took to avoid orphaning files. This is a REPLACEMENT,
+    /// not a cancel — it's safe to delete immediately here because the
+    /// Host has already made a new, different choice, unlike backing out
+    /// of the whole editor (see cancelTapped()).
     private func replaceMedia(with new: MediaAttachment) {
         if case .video(let filename) = draft.media, filename != initialVideoFilename {
             MediaStore.deleteVideo(filename: filename)
@@ -540,12 +578,16 @@ struct ClueEditorView: View {
         onSave()
     }
 
-    /// Cleans up an orphaned freshly-imported video before handing off to
-    /// the caller's cancel/discard-confirmation logic.
+    /// Fires from the single back-chevron button. Deliberately does NOT
+    /// delete anything here — the caller's onCancel decides whether this
+    /// is a clean exit or needs a Save/Discard/Keep Editing prompt first,
+    /// and any video cleanup only happens once "Discard" is the Host's
+    /// actual, confirmed choice (see ClueDetailView.discardEdits /
+    /// AddClueScreen's discard path). Deleting the file before that
+    /// decision was a real bug in the previous version: if the Host had
+    /// picked "Save Changes" from the resulting dialog, the video would
+    /// already be gone from disk by the time save ran.
     private func cancelTapped() {
-        if case .video(let filename) = draft.media, filename != initialVideoFilename {
-            MediaStore.deleteVideo(filename: filename)
-        }
         onCancel()
     }
 }
