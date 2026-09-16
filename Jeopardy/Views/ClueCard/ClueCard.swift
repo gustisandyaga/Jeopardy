@@ -361,6 +361,13 @@ struct ClueDetailView: View {
             titleVisibility: .visible
         ) {
             Button("Save Changes") { saveEdits() }
+                // Mirrors the toolbar Save button's own `.disabled(...)` in
+                // ClueEditorView — previously this path could write an
+                // invalid (e.g. blank Q&A) clue straight to SwiftData
+                // because it skipped that check entirely. See PROJECT.md's
+                // "Editor Layout, Save Validation, Focus Cleanup, and a
+                // Real Edit Button" addendum.
+                .disabled(!editDraft.isValid(isFinalJeopardy: clue.isFinalJeopardy))
             Button("Discard Changes", role: .destructive) { discardEdits() }
             Button("Keep Editing", role: .cancel) {}
         }
@@ -391,6 +398,13 @@ struct ClueDetailView: View {
     }
 
     private func saveEdits() {
+        // Defense in depth: the toolbar Save button and the discard
+        // dialog's "Save Changes" button both disable themselves when the
+        // draft is invalid, but this guard is what actually stops an
+        // invalid clue from ever reaching SwiftData, regardless of which
+        // path called this — see PROJECT.md's "Editor Layout, Save
+        // Validation, Focus Cleanup, and a Real Edit Button" addendum.
+        guard editDraft.isValid(isFinalJeopardy: clue.isFinalJeopardy) else { return }
         editDraft.apply(to: clue, isFinalJeopardy: clue.isFinalJeopardy)
         try? modelContext.save()
         isEditing = false
@@ -412,13 +426,6 @@ struct ClueDetailView: View {
                         .foregroundColor(.orange)
                 }
                 Spacer()
-                Button {
-                    startEditing()
-                } label: {
-                    Image(systemName: "pencil.circle")
-                }
-                .buttonStyle(.plain)
-                .help("Edit this clue")
             }
 
             if clue.isDailyDouble || clue.isFinalJeopardy {
@@ -471,6 +478,20 @@ struct ClueDetailView: View {
             .controlSize(.large)
         }
         .padding()
+        // Moved from a small inline icon-only button next to the category
+        // label to a proper toolbar item — matches ContentView's "Add
+        // Clue"/"Save Board"/"Reset Board" styling (Label with text + SF
+        // Symbol) for consistency (Nielsen #4), and gives the Host a much
+        // larger, easier-to-hit target (Fitts's Law) than the old
+        // icon-only `Image(systemName: "pencil.circle")`.
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button(action: startEditing) {
+                    Label("Edit Clue", systemImage: "pencil.circle.fill")
+                }
+                .help("Edit this clue")
+            }
+        }
     }
 
     private func revealAnswer() {

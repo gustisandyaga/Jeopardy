@@ -7,7 +7,7 @@
 //  one). Operates purely on a ClueDraft binding — the caller decides what
 //  Save/Cancel actually do (write to a live Clue vs. insert a new one).
 //
-//  Heuristic notes (see PROJECT.md's "Clue Editor Redesign" addendum for
+//  Heuristic notes (see PROJECT.md's "Clue Editor Redesign" addenda for
 //  the full write-up):
 //   - #1 Visibility of system status  -> statusBanner (mode + Cmd+S hint)
 //   - #3 User control and freedom     -> Cmd+Z undo stack; the back
@@ -20,14 +20,22 @@
 //                                         alert instead of silently no-op'ing
 //   - #10 Help and documentation      -> per-section captions toggled by
 //                                         the "?" toolbar button
-//   - Gestalt common region           -> sectionContainer(...) gives each
+//   - Gestalt common region/proximity -> sectionContainer(...) gives each
 //                                         conceptual group its own visible
 //                                         boundary instead of relying on
-//                                         whitespace alone
-//   - WCAG 2.4.3 Focus Order          -> ClueEditField covers every
-//                                         actionable control (not just
-//                                         text fields), so Tab moves
-//                                         through Picker/Toggle/Button too
+//                                         whitespace alone; the body is
+//                                         further split into a "setup"
+//                                         column and a "content" column
+//                                         (see body / setupColumn /
+//                                         contentColumn below) so related
+//                                         sections sit next to each other
+//                                         instead of every section
+//                                         stretching the full window width
+//   - WCAG 1.4.10 Reflow              -> the 2-column split only applies
+//                                         when there's room for it
+//                                         (ViewThatFits); narrow windows
+//                                         fall back to the original single
+//                                         column instead of clipping
 //   - WCAG-adjacent (click-away)      -> tapping empty space drops focus,
 //                                         same pattern as PlayerView's
 //                                         name field
@@ -69,34 +77,33 @@ struct ClueEditorView: View {
     private let pointOptions = [200, 400, 600, 800, 1000]
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                statusBanner
-
-                if !isFinalJeopardyMode {
-                    generalSection
-                    typeSection
-                } else {
-                    sectionContainer(
-                        title: "Final Jeopardy",
-                        help: "This clue plays as an optional bonus round below the main board. It has no category or point value on the grid."
-                    ) {
-                        EmptyView()
+        GeometryReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    statusBanner
+                    
+                    // Adaptive 2-column layout: try the wide 2-column split
+                    // first, fall back to the original single-column stack
+                    // when the available width can't fit both columns at
+                    // their minimum width. See setupColumn/contentColumn below
+                    // for the actual grouping.
+                    
+                    if proxy.size.width >= 700 {
+                        twoColumnLayout
+                    } else {
+                        singleColumnLayout
                     }
+                    
                 }
-
-                multipleChoiceSection
-                mediaSection
-                questionAnswerSection
+                .padding(24)
+                // (#3 / click-away-to-unfocus) Tapping any non-interactive area
+                // drops keyboard focus — same pattern PlayerView already uses
+                // for its name field. Buttons/fields still consume their own
+                // taps normally; this only catches taps that land on empty
+                // space between them.
+                .contentShape(Rectangle())
+                .onTapGesture { focusedField = nil }
             }
-            .padding(24)
-            // (#3 / click-away-to-unfocus) Tapping any non-interactive area
-            // drops keyboard focus — same pattern PlayerView already uses
-            // for its name field. Buttons/fields still consume their own
-            // taps normally; this only catches taps that land on empty
-            // space between them.
-            .contentShape(Rectangle())
-            .onTapGesture { focusedField = nil }
         }
         .frame(minWidth: 480, minHeight: 560)
         .onAppear {
@@ -135,7 +142,7 @@ struct ClueEditorView: View {
         // affordance — see file header. This modifier's cross-platform
         // behavior on a macOS-hosted NavigationStack hasn't been confirmed
         // in a real Xcode build; verify the native chevron is actually
-        // gone (not just visually duplicated) before relying on it.
+        // gone (not just visually duplicated) before relying on this.
         .navigationBarBackButtonHidden(true)
         .toolbar {
             ToolbarItem(placement: .navigation) {
@@ -159,6 +166,57 @@ struct ClueEditorView: View {
                 }
                 .help("Show or hide a plain-language explanation of each section")
             }
+        }
+    }
+
+    // MARK: - Adaptive layout (2-column setup/content split)
+
+    /// "Setup" — how this clue behaves: category/points/type, plus
+    /// Multiple Choice (still a configuration decision, even though its
+    /// option list can grow long).
+    private var setupColumn: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            if !isFinalJeopardyMode {
+                generalSection
+                typeSection
+            } else {
+                sectionContainer(
+                    title: "Final Jeopardy",
+                    help: "This clue plays as an optional bonus round below the main board. It has no category or point value on the grid."
+                ) {
+                    EmptyView()
+                }
+            }
+            multipleChoiceSection
+        }
+    }
+
+    /// "Content" — what this clue actually shows/asks: the attached media
+    /// and the question/answer text itself.
+    private var contentColumn: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            mediaSection
+            questionAnswerSection
+        }
+    }
+
+    /// Preferred layout when there's enough width: setup on the left,
+    /// content on the right, each with a sane minimum before either
+    /// column gets uncomfortably cramped.
+    private var twoColumnLayout: some View {
+        HStack(alignment: .top, spacing: 20) {
+            setupColumn.frame(minWidth: 340, maxWidth: .infinity, alignment: .top)
+            contentColumn.frame(minWidth: 340, maxWidth: .infinity, alignment: .top)
+        }
+    }
+
+    /// Fallback for narrow widths (resized macOS window, iPhone/iPad
+    /// portrait) — the original stacked order, so nothing clips or
+    /// requires horizontal scrolling (WCAG 1.4.10 Reflow).
+    private var singleColumnLayout: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            setupColumn
+            contentColumn
         }
     }
 
@@ -240,7 +298,6 @@ struct ClueEditorView: View {
                 }
             }
             .pickerStyle(.segmented)
-            .focused($focusedField, equals: .clueType)
         }
     }
 
@@ -252,7 +309,6 @@ struct ClueEditorView: View {
             help: "Turn this on to give tappable answer options instead of, or alongside, free text. Needs at least 2 filled-in options."
         ) {
             Toggle("Enable multiple choice", isOn: $draft.isMultipleChoice)
-                .focused($focusedField, equals: .multipleChoiceToggle)
 
             if draft.isMultipleChoice {
                 ForEach(draft.choiceOptions.indices, id: \.self) { idx in
@@ -278,7 +334,6 @@ struct ClueEditorView: View {
                     Label("Add Option", systemImage: "plus.circle")
                 }
                 .disabled(draft.choiceOptions.count >= 8)
-                .focused($focusedField, equals: .addOptionButton)
 
                 Picker("Correct Answer", selection: $draft.correctChoiceIndex) {
                     ForEach(draft.choiceOptions.indices, id: \.self) { idx in
@@ -287,7 +342,6 @@ struct ClueEditorView: View {
                         }
                     }
                 }
-                .focused($focusedField, equals: .correctAnswerPicker)
             }
         }
     }
@@ -313,7 +367,6 @@ struct ClueEditorView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     HStack {
                         Button("Attach Media") { isImportingMedia = true }
-                            .focused($focusedField, equals: .mediaAttachButton)
                         #if os(macOS)
                         Button("Paste") { pasteMediaFromPasteboard() }
                         #endif

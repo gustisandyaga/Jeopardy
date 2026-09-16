@@ -52,12 +52,26 @@ struct AddClueScreen: View {
             titleVisibility: .visible
         ) {
             Button("Save Changes") { save() }
+                // Mirrors the toolbar Add button's own `.disabled(...)` in
+                // ClueEditorView — previously this path could insert an
+                // invalid (e.g. blank Q&A) clue straight into SwiftData
+                // because it skipped that check entirely. See PROJECT.md's
+                // "Editor Layout, Save Validation, Focus Cleanup, and a
+                // Real Edit Button" addendum.
+                .disabled(!draft.isValid(isFinalJeopardy: isFinalJeopardy))
             Button("Discard Changes", role: .destructive) { discard() }
             Button("Keep Editing", role: .cancel) {}
         }
     }
 
     private func save() {
+        // Defense in depth: the toolbar Add button and the discard
+        // dialog's "Save Changes" button both disable themselves when the
+        // draft is invalid, but this guard is what actually stops an
+        // invalid clue from ever being inserted, regardless of which path
+        // called this — see PROJECT.md's "Editor Layout, Save Validation,
+        // Focus Cleanup, and a Real Edit Button" addendum.
+        guard draft.isValid(isFinalJeopardy: isFinalJeopardy) else { return }
         let newClue = draft.makeClue(isFinalJeopardy: isFinalJeopardy)
         modelContext.insert(newClue)
         try? modelContext.save()

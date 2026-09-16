@@ -870,7 +870,13 @@ more established iOS/UIKit-derived behavior) hasn't been confirmed in a
 real Xcode build — check for a duplicate/ghost back control before relying
 on this.
 
-**Need to fix:** When going back, even if the board is actually not "completed" in the sense that it's supposed to be save-able, it still saves the board regardless, even with empty Q & As
+**Fixed:** the "save regardless of validity" bug described here (the back
+button's discard dialog would save even a blank-Q&A clue) is addressed in
+the "Editor Layout, Save Validation, Focus Cleanup, and a Real Edit
+Button" addendum below — `saveEdits()` / `AddClueScreen.save()` now guard
+on `draft.isValid(...)` before writing anything, and the dialog's "Save
+Changes" button disables itself the same way the main Save/Add button
+already did.
 
 ## 2. Cmd+S hint
 
@@ -887,23 +893,167 @@ false` on background tap). Without this, tapping empty space inside the
 editor didn't drop focus from whatever field was last active, since
 SwiftUI doesn't do that automatically.
 
-## 4. Full keyboard Tab order, not just text fields
+## 4. Full keyboard Tab order, not just text fields — REMOVED
 
-`ClueEditField` (in `ClueDraft.swift`) expanded from 4 cases (all text
-fields) to 10, covering the segmented Type picker, the Multiple Choice
-toggle, the Add Option button, the Correct Answer picker, and the Attach
-Media button — every one now carries a `.focused($focusedField, equals:)`
-binding in the same order they're declared, giving one deliberate Tab path:
-category → points (only if Custom) → clue type → multiple choice toggle →
-[choice options → add option → correct answer, if enabled] → attach media
-→ question → answer.
+`ClueEditField` originally expanded from 4 cases (all text fields) to 10,
+covering the segmented Type picker, the Multiple Choice toggle, the Add
+Option button, the Correct Answer picker, and the Attach Media button, in
+an attempt to give the editor one deliberate Tab path across every control
+in declaration order: category → points (only if Custom) → clue type →
+multiple choice toggle → [choice options → add option → correct answer, if
+enabled] → attach media → question → answer.
 
-**Unverified / known risk:** macOS has historically gated whether
-non-text controls (buttons, checkboxes, segmented controls) participate in
-Tab order behind the system-level "Full Keyboard Access" preference
-(System Settings → Keyboard), which an app can't override. SwiftUI's
-`.focused()` binding is expected to drive traversal regardless, but this
-needs hands-on testing in a real build — if any control gets skipped
-during Tab, that's the first place to look.
-**Tested**: Risk confirmed, it doesn't go to non-text controls
+**Tested and confirmed broken:** macOS gates Tab traversal for non-text
+controls (buttons, checkboxes, segmented controls) behind the
+system-level "Full Keyboard Access" preference (System Settings →
+Keyboard), which an app can't override — SwiftUI's `.focused()` binding
+did not make those controls participate in Tab order regardless. Since it
+provided no actual functionality while adding six extra enum cases and
+five extra `.focused()` bindings to maintain, this was removed entirely.
+See the "Editor Layout, Save Validation, Focus Cleanup, and a Real Edit
+Button" addendum below for what's left — just the real text-entry fields,
+kept only so click-away-to-unfocus (#3 above) still has something to null
+out.
 
+# Addendum: Editor Layout, Save Validation, Focus Cleanup, and a Real Edit Button
+
+Four related fixes/changes made together in the same pass, since they all
+touch `ClueEditorView` / `ClueDetailView` / `AddClueScreen` / `ClueDraft`.
+
+## 1. Adaptive 2-column layout for the editor (`ClueEditorView.swift`)
+
+Every section previously stretched `.frame(maxWidth: .infinity)` inside a
+single-column `VStack`, so on a wide window a lone checkbox ("Multiple
+Choice") or segmented control ("Clue Type") spanned the entire window
+width. That's a Gestalt proximity/common-region failure — the sections are
+conceptually grouped by their rounded containers, but the enormous
+leftover whitespace inside each container (a checkbox in a full-window-
+wide box) undercuts that grouping and just makes the form tiring to scroll
+through.
+
+`body` now wraps the sections in `ViewThatFits(in: .horizontal)`, trying
+two candidate layouts in order:
+
+- **`twoColumnLayout`** — an `HStack` split into:
+  - **`setupColumn`** ("how this clue behaves"): General Info / the Final
+    Jeopardy placeholder, Clue Type, and Multiple Choice.
+  - **`contentColumn`** ("what this clue actually shows/asks"): Media and
+    Clue Details (Question/Answer).
+  Each column gets `.frame(minWidth: 340, maxWidth: .infinity, alignment:
+  .top)`, so on a sufficiently wide window they sit side by side and share
+  the remaining space evenly.
+- **`singleColumnLayout`** — the original stacked order (setup column's
+  sections, then content column's sections), used automatically whenever
+  the two-column version's minimum required width (340 + 340 + 20pt
+  spacing = 700pt) doesn't fit what's actually available.
+
+`ViewThatFits` measures each candidate's ideal size and picks the first
+one that fits, so this adapts live as the window/device width changes —
+no manual breakpoint constant to keep in sync, and narrow widths (a
+resized macOS window, iPhone/iPad portrait) fall back to the original
+single column instead of clipping or forcing horizontal scroll (WCAG
+1.4.10 Reflow).
+
+**Unverified:** exact ideal-size measurement for `ViewThatFits` against
+`.frame(minWidth:, maxWidth: .infinity)` children hasn't been confirmed in
+a real Xcode build — if the two-column layout doesn't collapse at the
+expected width, `minWidth` on `setupColumn`/`contentColumn` is the first
+thing to adjust.
+
+## 2. Save no longer bypasses validation (`ClueCard.swift`, `AddClueScreen.swift`)
+
+Found a real bug, previously flagged as "**Need to fix**" in the addendum
+above: the toolbar's Save/Add button was correctly guarded
+(`.disabled(!draft.isValid(...))`), but the **discard confirmation
+dialog's "Save Changes" button** called `saveEdits()` / `save()` directly
+with no validity check at all — backing out of the editor with unsaved
+changes and choosing "Save Changes" could write a blank-Q&A clue straight
+into SwiftData, completely bypassing the form's own validation.
+
+Fixed with two layers (defense in depth, not just a UI-level disable, so
+no future call site can reintroduce the bug):
+
+- `ClueDetailView.saveEdits()` and `AddClueScreen.save()` now both start
+  with `guard draft.isValid(isFinalJeopardy: ...) else { return }` before
+  doing anything else.
+- The dialog's "Save Changes" button also gets
+  `.disabled(!draft.isValid(...))`, so it gives the exact same visual
+  (greyed-out) feedback the main Save/Add button already does — kept
+  consistent with that existing pattern (Nielsen #4) rather than
+  introducing a separate alert/message just for this one path.
+
+## 3. Removed the non-functional Tab-order plumbing (`ClueDraft.swift`, `ClueEditorView.swift`)
+
+See "Clue Editor Redesign — refinements", item 4 above for the full
+history — the custom Tab-order attempt was tested and confirmed not to
+work on non-text controls. `ClueEditField` is trimmed from 10 cases down
+to the actual text-input fields only: `category`, `customPoints`,
+`choiceOption(Int)`, `question`, `answer`. The `.focused($focusedField,
+equals:)` bindings on the Clue Type picker, the Multiple Choice toggle,
+the Add Option button, the Correct Answer picker, and the Attach Media
+button were removed along with their enum cases. Click-away-to-unfocus is
+unaffected — it only ever needed *some* live `FocusState` value to null
+out, which the remaining text fields still provide.
+
+## 4. Bigger, nav-level Edit button (`ClueCard.swift`)
+
+The old edit control was a small icon-only button (`Image(systemName:
+"pencil.circle")`, `.buttonStyle(.plain)`) inline next to the category
+label — a small hit target (Fitts's Law: smaller/farther targets take
+longer and are more error-prone to hit) that also didn't match how every
+other primary action in this app is presented (`ContentView`'s "Add Clue"
+/ "Save Board" / "Reset Board" are all `Label(_, systemImage:)` items in
+the toolbar — Nielsen #4, consistency and standards).
+
+`ClueDetailView.clueContent` now surfaces edit as a toolbar item instead:
+
+```swift
+.toolbar {
+    ToolbarItem(placement: .primaryAction) {
+        Button(action: startEditing) {
+            Label("Edit Clue", systemImage: "pencil.circle.fill")
+        }
+        .help("Edit this clue")
+    }
+}
+```
+
+matching the exact style/weight of the home screen's primary actions. The
+`HStack` next to the category label that used to host the inline button
+now just holds the category text and the Daily Double/Multiple People
+badge.
+
+## Known follow-ups / not done here
+
+- The `ViewThatFits` two-column breakpoint (700pt combined minimum) is a
+  reasonable starting guess, not something measured against real device
+  widths — revisit once this can be tested in an actual Xcode build on
+  iPhone/iPad-sized simulators.
+# Jeopardy App Layout & Performance Cheat Sheet
+
+## Fixed Issues
+
+| Issue | Cause | Fix |
+| :--- | :--- | :--- |
+| **Scroll Lag** | `TextEditor` inside `ScrollView` + heavy `ViewThatFits` recalculations | Swapped `TextEditor` for `TextField(axis: .vertical)` and replaced `ViewThatFits`. |
+| **Unclickable UI** | `GeometryReader` inside `ScrollView` collapsed the view's frame height | Wrapped `GeometryReader` around the *outside* of `ScrollView`. |
+
+## Code Snippets
+
+### 1. Multi-Line Text Field (Fixes Scroll Lag)
+```swift
+// Use an expanding TextField instead of TextEditor inside ScrollView
+TextField("Label", text: $text, axis: .vertical)
+    .focused($focusedField)
+    .font(.body)
+    .padding(8)
+    .frame(minHeight: 110, alignment: .top)
+```swift
+
+
+- No automated regression test exists for the save-validation fix (no
+  compiler/test runner available in this environment) — manually verify
+  in Xcode that: (a) the toolbar Save/Add button stays disabled with
+  blank Q&A, (b) the discard dialog's "Save Changes" button is *also*
+  disabled in that state, and (c) attempting to trigger `saveEdits()` /
+  `AddClueScreen.save()` some other way still no-ops on an invalid draft.

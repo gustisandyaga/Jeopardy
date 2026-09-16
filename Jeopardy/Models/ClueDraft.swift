@@ -57,28 +57,21 @@ enum ClueKind: String, CaseIterable, Identifiable, Equatable {
     }
 }
 
-/// Fields that can hold keyboard focus in `ClueEditorView`. Centralizing
-/// these in one enum (rather than scattered ad hoc `@State` bools, as the
-/// old `ClueFormView` had for its drop-zone targeting) gives the editor one
-/// authoritative tab order, and lets Save/Cmd+S explicitly drop focus
-/// before validating rather than leaving whatever field was last active
-/// still "live" (WCAG 2.4.3 Focus Order).
-/// Every case here gets a `.focused($focusedField, equals:)` somewhere in
-/// ClueEditorView, in this declaration order — that's what defines the
-/// keyboard Tab order end to end (category -> points -> type -> multiple
-/// choice toggle -> [options if enabled] -> media -> question -> answer).
-/// Unlike a plain TextField-only focus enum, this also covers non-text
-/// controls (Picker, Toggle, Button) so Tab-only keyboard use never gets
-/// stuck skipping over them.
+/// Fields that can hold keyboard focus in `ClueEditorView`. This used to
+/// also cover non-text controls (Picker/Toggle/Button) in an attempt to
+/// give the editor a full custom Tab order across every control, not just
+/// text fields — see `PROJECT.md`'s "Clue Editor Redesign — refinements"
+/// addendum. That was tested and confirmed to not work: macOS gates Tab
+/// traversal for non-text controls behind the user's system-level "Full
+/// Keyboard Access" preference, which an app can't override, so those
+/// extra cases and their `.focused()` bindings did nothing and were
+/// removed. What's left is just the real text-entry fields, kept so
+/// click-away-to-unfocus (tapping empty space in the editor) still has
+/// something to null out.
 enum ClueEditField: Hashable {
     case category
     case customPoints
-    case clueType
-    case multipleChoiceToggle
     case choiceOption(Int)
-    case addOptionButton
-    case correctAnswerPicker
-    case mediaAttachButton
     case question
     case answer
 }
