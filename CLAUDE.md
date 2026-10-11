@@ -201,6 +201,17 @@ reliably, so compose the pieces by hand. Running the unsigned build also uses
 an unsandboxed store at `~/Library/Application Support/default.store`, not the
 real container; back it up before launching and restore after.
 
+## Update log (`Doc/`)
+
+Keep a dated record of each working session in `Doc/<YYYY-MM-DD>-update.md`
+(repo root, outside the Xcode source folder so it never affects the build).
+At the end of a session that changed the app, add or extend that day's file:
+what changed and why, files touched, decisions and rejected alternatives,
+bugs found, **verification status** (built / rendered / actually clicked / not
+tested), and known gaps. Lead with the commit hash if one exists. If two
+sessions land on the same date, append a `## Later update` section instead of
+creating a second file. Don't duplicate rules from this file; link to them.
+
 ## Code conventions
 
 - Match the surrounding style: SwiftUI, `// MARK:` sections, file header
