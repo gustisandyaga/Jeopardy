@@ -2,10 +2,10 @@
 
 Read this first if you're picking this project back up (human or Claude).
 
-**Last major change:** Split the 688-line `ClueEditorView.swift` into a
-layout shell plus three focused files (`SectionContainer`,
-`MediaAttachmentSection`, `MultipleChoiceEditSection`) — no logic changes,
-purely file-boundary reorganization. See §2 for the new layout.
+**Last major change:** Accessibility pass — contrast tokens, a second board
+theme ("Broadcast"), hover/VoiceOver tile actions, Reactivate All, Reduce
+Motion, VoiceOver labels, delete confirmations. See CLAUDE.md for the rules
+and §2/§4 for where things live.
 
 ## 1. Overview
 
@@ -28,13 +28,18 @@ hand-edit `project.pbxproj` to add a new Swift file.
 Jeopardy/
   JeopardyApp.swift          — @main, registers SwiftData models
   Theme/
-    JeopardyColors.swift      — palette constants + Color(hex:) extension
+    JeopardyColors.swift      — palette, semantic text/state tokens (measured),
+                                 Color(hex:) and Color.adaptive(light:dark:)
+    Motion.swift              — Reduce Motion helpers (withMotionPreference)
   Models/
     Clue.swift                — core @Model: one question/answer card
     CategoryInfo.swift        — per-category metadata (rules text only)
     Players.swift             — a player's name, score, gimmicks used
     GimmickType.swift          — enum of power-ups (phoneAFriend, fiftyFifty)
     BoardGridDensity.swift    — accessibility pref for board spacing
+    BoardTheme.swift          — accessibility pref for board backdrop
+                                 (Parchment / Broadcast) and everything that
+                                 varies with it
     ClueDraft.swift            — value-type mirror of Clue's editable fields,
                                  used only by the editor (see §3)
   Services/
@@ -52,8 +57,11 @@ Jeopardy/
     PlayerView.swift          — one player chip + BottomPlayerBar
     SoundManager.swift        — plays "reveal_ding.mp3" from the bundle
     ClueCard/
-      ClueCardView.swift        — the board tile only (points, opened
-                                 state, edit/delete/reactivate menu)
+      ClueCardView.swift        — the board tile's visuals only (points,
+                                 opened state, theme outline)
+      ClueTileView.swift        — interactive tile: NavigationLink + context
+                                 menu + hover "⋯" menu + VoiceOver actions +
+                                 delete confirmation
       ClueDetailView.swift      — the detail/edit screen: announcement ->
                                  question/media/multiple-choice -> reveal,
                                  plus the inline-edit swap
@@ -121,7 +129,7 @@ Only the non-obvious rules that would cause a bug if violated:
 ## 4. Design system reference
 
 **Palette** (`Theme/JeopardyColors.swift`), chosen via the 60-30-10 rule and
-validated for WCAG contrast (all pairings pass AAA, ≥8.7:1):
+validated for WCAG contrast. White-on-navy is 16:1; Saffron-on-navy is 8.7:1 (6.1:1 at the lighter gradient stop). Text/state colors outside the palette (correct/incorrect, gold, opened/completed fills, announcement backgrounds) are tokens in the same file, measured with WCAG + APCA — see CLAUDE.md for the table:
 
 | Constant | Hex | Role |
 |---|---|---|
@@ -140,6 +148,12 @@ Current rule, in `BoardGridDensity.swift` + `ClueCardView`/`CategoryHeader`:
 - **Tight**: near-zero gaps (3pt spacing, 6pt radius, no halo) — removes the
   regular "streets" the illusion depends on instead of softening the edge.
 
+**Broadcast theme** (`BoardTheme.swift`): a near-black navy backdrop drops the
+card/backdrop contrast from 14.7:1 to ~1.2:1, which weakens the illusion at its
+source; a 1pt lighter outline keeps cards visibly separate, and opened tiles
+recede into the dark. Theme and density are independent and both live in the
+toolbar's "Board Appearance" menu.
+
 Both are valid, user-toggleable answers to the same problem — not one
 "correct" fix. Wavy grid lines and shrinking the grid were considered and
 rejected (they break category/point-row alignment the Host relies on, or
@@ -147,9 +161,8 @@ aren't compatible with Host-defined board size).
 
 ## 5. ⚠️ Unverified / needs confirmation in a real Xcode build
 
-No compiler/test runner is available in this environment — everything below
-was written and reviewed by hand and needs manual verification before being
-trusted:
+`xcodebuild` is available (see CLAUDE.md) and the project builds, but none of
+the items below have been exercised in a running app or checked visually:
 
 - **SwiftData lightweight migration** — `Clue`/`Players` picked up new
   stored properties across sessions; untested against a real existing
@@ -192,9 +205,8 @@ trusted:
   entirely while mid-edit.
 - `EmptyBoardStateView` triggers off `categories.isEmpty` only — does not
   separately check whether a Final-Jeopardy-only clue exists.
-- Daily Double (`.orange`) and Multiple People (`.mint`) announcement tints
-  were never brought into the `.jeopardyFinal`-style palette pass — only
-  Final Jeopardy got a deliberately chosen color.
+- Announcement screens now use opaque palette-based backgrounds and measured
+  icon colors, but have not been checked visually in a running app.
 
 ## 7. Backlog (iOS companion — not started)
 

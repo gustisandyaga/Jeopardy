@@ -28,6 +28,7 @@ struct ClueDetailView: View {
     var startInEditMode: Bool = false
 
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Query private var existingClues: [Clue]
 
     @State private var showAnswer = false
@@ -68,7 +69,7 @@ struct ClueDetailView: View {
                 editingContent
             } else if isShowingAnnouncement, let announcementKind {
                 ClueAnnouncementView(kind: announcementKind) {
-                    withAnimation(.easeInOut) {
+                    withMotionPreference(reduceMotion: reduceMotion, .easeInOut) {
                         isShowingAnnouncement = false
                     }
                 }
@@ -164,11 +165,11 @@ struct ClueDetailView: View {
                 if clue.isDailyDouble {
                     Label("Daily Double", systemImage: "2.circle.fill")
                         .font(.caption.bold())
-                        .foregroundColor(.yellow)
+                        .foregroundColor(.jeopardyGold)
                 } else if clue.isMultiplePeople {
                     Label("Multiple People", systemImage: "person.2.fill")
                         .font(.caption.bold())
-                        .foregroundColor(.orange)
+                        .foregroundColor(.jeopardyAmberText)
                 }
                 Spacer()
             }
@@ -201,18 +202,18 @@ struct ClueDetailView: View {
                     }
                     if !clue.answer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         Text(clue.answer)
-                            .font(.title).foregroundColor(.green)
+                            .font(.title).foregroundColor(.jeopardyCorrect)
                             .multilineTextAlignment(.center)
                     }
                 }
-                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .transition(.slideAndFade(edge: .bottom, reduceMotion: reduceMotion))
             }
 
             Spacer()
 
             Button(showAnswer ? "Hide Answer" : "Reveal Answer") {
                 if showAnswer {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                    withMotionPreference(reduceMotion: reduceMotion, .spring(response: 0.35, dampingFraction: 0.8)) {
                         showAnswer = false
                     }
                 } else {
@@ -241,7 +242,7 @@ struct ClueDetailView: View {
 
     private func revealAnswer() {
         guard !showAnswer else { return }
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+        withMotionPreference(reduceMotion: reduceMotion, .spring(response: 0.35, dampingFraction: 0.8)) {
             showAnswer = true
             SoundManager.instance.playSound(named: "reveal_ding")
             clue.isOpened = true

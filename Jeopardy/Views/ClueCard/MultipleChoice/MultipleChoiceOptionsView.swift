@@ -65,7 +65,7 @@ struct MultipleChoiceOptionsView: View {
                 Spacer()
                 if showAnswer && isCorrect {
                     Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(.green)
+                        .foregroundColor(.jeopardyCorrect)
                 }
             }
             .padding(10)
@@ -74,18 +74,22 @@ struct MultipleChoiceOptionsView: View {
             .cornerRadius(8)
             .overlay(
                 RoundedRectangle(cornerRadius: 8)
-                    .stroke(showAnswer && isCorrect ? Color.green.opacity(0.6) : Color.clear, lineWidth: 1.5)
+                    .stroke(showAnswer && isCorrect ? Color.jeopardyCorrect.opacity(0.6) : Color.clear, lineWidth: 1.5)
             )
         }
         .buttonStyle(.plain)
-        .disabled(showAnswer || isEliminated)
+        // Only eliminated rows are disabled. `.disabled` makes SwiftUI dim
+        // the whole row (~40% opacity), which used to grey out EVERY option —
+        // including the correct one — the moment the answer was revealed.
+        // The `guard !showAnswer` in the action already blocks taps then.
+        .disabled(isEliminated)
         .foregroundColor(.primary)
     }
 
     private func rowBackground(isEliminated: Bool, isCorrect: Bool) -> Color {
-        if showAnswer && isCorrect { return Color.green.opacity(0.22) }
+        if showAnswer && isCorrect { return Color.jeopardyCorrect.opacity(0.22) }
         if isEliminated { return Color.gray.opacity(0.12) }
-        return Color.blue.opacity(0.08)
+        return Color.jeopardyInfo.opacity(0.08)
     }
 
     private func toggleElimination(_ index: Int) {

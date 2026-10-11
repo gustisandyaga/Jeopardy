@@ -54,6 +54,7 @@ struct MultipleChoiceEditSection: View {
                             }
                             .buttonStyle(.plain)
                             .help("Remove this option")
+                            .accessibilityLabel("Remove option \(choiceLetter(for: idx))")
                         }
                     }
                 }

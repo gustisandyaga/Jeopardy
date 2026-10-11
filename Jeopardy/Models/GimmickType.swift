@@ -52,8 +52,8 @@ enum GimmickType: String, CaseIterable, Identifiable, Codable {
 
     var tint: Color {
         switch self {
-        case .phoneAFriend: return .green
-        case .fiftyFifty: return .purple
+        case .phoneAFriend: return .jeopardyGimmickCall
+        case .fiftyFifty: return .jeopardyGimmickCut
         }
     }
 }

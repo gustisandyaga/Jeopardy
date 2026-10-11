@@ -89,6 +89,15 @@ class Clue {
         self.fiftyFiftyUsed = fiftyFiftyUsed
     }
 
+    /// Puts this clue back to "never played": unopened, no crossed-out
+    /// options, 50:50 available again. Content (question/answer/options) is
+    /// untouched. Used by the tile's Reactivate action and Reactivate All.
+    func reactivate() {
+        isOpened = false
+        eliminatedChoiceIndices = []
+        fiftyFiftyUsed = false
+    }
+
     /// True if this clue needs a full-screen announcement (Daily Double,
     /// Multiple People, or Final Jeopardy) shown before its question/answer.
     var needsAnnouncement: Bool {

@@ -62,7 +62,8 @@ struct MediaAttachmentSection: View {
                         Button("Paste") { pasteMediaFromPasteboard() }
                         #endif
                         if !media.isNone {
-                            Image(systemName: "checkmark.circle.fill").foregroundColor(.green)
+                            Image(systemName: "checkmark.circle.fill").foregroundColor(.jeopardyCorrect)
+                                .accessibilityLabel("Media attached")
                             if case .image = media {
                                 Button("Re-crop") {
                                     pendingOriginalImageData = answerImageData ?? currentImageData()
@@ -73,9 +74,11 @@ struct MediaAttachmentSection: View {
                                 Image(systemName: "xmark.circle")
                             }
                             .buttonStyle(.plain)
+                            .accessibilityLabel("Remove attached media")
+                            .help("Remove attached media")
                         }
                         Spacer()
-                        Image(systemName: mediaIcon).foregroundColor(.secondary)
+                        Image(systemName: mediaIcon).foregroundColor(.secondary).accessibilityHidden(true)
                     }
                     Text(mediaStatusText)
                         .font(.caption2)

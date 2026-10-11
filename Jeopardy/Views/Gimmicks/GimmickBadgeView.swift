@@ -46,6 +46,8 @@ struct GimmickBadgeView: View {
         }
         .buttonStyle(.plain)
         .disabled(isUsed || !isEnabled)
+        .accessibilityLabel(gimmick.title)
+        .accessibilityValue(isUsed ? "Already used" : (isEnabled ? "Available" : (disabledReason ?? "Unavailable")))
         .help(isUsed ? "\(gimmick.title) — already used" : gimmick.title)
         .onHover { hovering in
             isHovering = hovering
@@ -61,7 +63,7 @@ struct GimmickBadgeView: View {
                 if isUsed {
                     Text("Already used this game")
                         .font(.caption2.italic())
-                        .foregroundColor(.orange)
+                        .foregroundColor(.jeopardyAmberText)
                 } else if !isEnabled {
                     Text(disabledReason ?? "Not available right now")
                         .font(.caption2.italic())

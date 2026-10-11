@@ -47,6 +47,7 @@ struct VideoLightboxView: View {
                     .shadow(radius: 4)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Close")
             .padding(24)
         }
         .frame(

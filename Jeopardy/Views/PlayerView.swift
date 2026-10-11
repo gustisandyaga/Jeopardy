@@ -14,6 +14,7 @@ struct PlayerView: View {
 
     @State private var isAdjustingScore = false
     @State private var isConfirmingReset = false
+    @State private var isConfirmingRemove = false
     
     // Consider this to be in ContentView
     @FocusState private var nameFocus: Bool
@@ -23,6 +24,7 @@ struct PlayerView: View {
             TextField("Name", text: $player.name)
                 .textFieldStyle(.roundedBorder)
                 .multilineTextAlignment(.center)
+                .accessibilityLabel("Player name")
                 .focused(self.$nameFocus, equals: true)
 
             // We hide this for now
@@ -32,13 +34,17 @@ struct PlayerView: View {
             Text("\(player.score)")
                 .font(.system(size: 28, weight: .bold, design: .monospaced))
                 .foregroundColor(.primary)
+                .accessibilityLabel("\(player.name) score")
+                .accessibilityValue("\(player.score) dollars")
             
             if isFinalJeopardyActive {
                 finalJeopardyControls
             } else {
                 HStack {
                     Button("-") { player.score -= currentCluePoints }
+                        .accessibilityLabel("Subtract \(currentCluePoints) dollars from \(player.name)")
                     Button("+") { player.score += currentCluePoints }
+                        .accessibilityLabel("Add \(currentCluePoints) dollars to \(player.name)")
                 }
                 .buttonStyle(.bordered)
             }
@@ -73,7 +79,7 @@ struct PlayerView: View {
                 Divider()
 
                 Button(role: .destructive) {
-                    deletePlayer()
+                    isConfirmingRemove = true
                 } label: {
                     Label("Remove Player", systemImage: "trash")
                 }
@@ -85,6 +91,18 @@ struct PlayerView: View {
         ) {
             Button("Reset Score", role: .destructive) { player.score = 0 }
             Button("Cancel", role: .cancel) {}
+        }
+        // (Nielsen #5) Removing a player also discards their score and
+        // used power-ups, so confirm first.
+        .confirmationDialog(
+            "Remove \(player.name) from the game?",
+            isPresented: $isConfirmingRemove,
+            titleVisibility: .visible
+        ) {
+            Button("Remove Player", role: .destructive) { deletePlayer() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Their score and wager are lost and can't be recovered.")
         }
         .sheet(isPresented: $isAdjustingScore) {
             ScoreAdjustmentView(player: player, suggestedWager: currentCluePoints)
@@ -102,11 +120,12 @@ struct PlayerView: View {
                 .textFieldStyle(.roundedBorder)
                 .multilineTextAlignment(.center)
                 .help("This player's Final Jeopardy wager")
+                .accessibilityLabel("\(player.name) Final Jeopardy wager")
                 .onSubmit { try? modelContext.save() }
 
             HStack(spacing: 8) {
                 Button("Incorrect") { resolveFinalJeopardy(as: "incorrect") }
-                    .foregroundColor(.red)
+                    .foregroundColor(.jeopardyIncorrect)
                 Button("Correct") { resolveFinalJeopardy(as: "correct") }
             }
             .buttonStyle(.bordered)
@@ -114,7 +133,7 @@ struct PlayerView: View {
         } else {
             Text("Wager: $\(player.finalJeopardyWager) — \(resultLabel)")
                 .font(.caption)
-                .foregroundColor(player.finalJeopardyResult == "correct" ? .green : .red)
+                .foregroundColor(player.finalJeopardyResult == "correct" ? .jeopardyCorrect : .jeopardyIncorrect)
             Button("Undo Result", action: undoFinalJeopardyResult)
                 .buttonStyle(.bordered)
         }
@@ -210,7 +229,7 @@ struct ScoreAdjustmentView: View {
                         Label("Mark Incorrect (-$\(max(amount, 0)))", systemImage: "xmark.circle.fill")
                     }
                     .disabled(amount <= 0)
-                    .foregroundColor(.red)
+                    .foregroundColor(.jeopardyIncorrect)
 
                     Button {
                         player.score = amount
@@ -261,6 +280,7 @@ struct BottomPlayerBar: View {
                 }
                 .buttonStyle(.plain)
                 .help("Add Player")
+                .accessibilityLabel("Add player")
 
                 if !players.isEmpty {
                     Button {
@@ -270,6 +290,7 @@ struct BottomPlayerBar: View {
                     }
                     .buttonStyle(.plain)
                     .help("Reset All Scores to $0 and clear used power-ups")
+                    .accessibilityLabel("Reset all scores")
                 }
                 if isFinalJeopardyActive, !players.isEmpty {
                     Button {

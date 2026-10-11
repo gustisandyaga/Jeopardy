@@ -21,6 +21,7 @@ import SwiftUI
 struct ImageLightboxView: View {
     let nsImage: NSImage
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var scale: CGFloat = 1.0
     @State private var lastScale: CGFloat = 1.0
@@ -59,6 +60,7 @@ struct ImageLightboxView: View {
                     .shadow(radius: 4)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Close")
             .padding(24)
         }
         .frame(
@@ -94,7 +96,7 @@ struct ImageLightboxView: View {
     }
 
     private func resetZoom() {
-        withAnimation(.easeInOut(duration: 0.2)) {
+        withMotionPreference(reduceMotion: reduceMotion, .easeInOut(duration: 0.2)) {
             scale = 1.0
             lastScale = 1.0
             offset = .zero

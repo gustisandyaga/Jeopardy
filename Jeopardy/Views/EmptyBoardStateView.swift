@@ -27,6 +27,9 @@
 import SwiftUI
 
 struct EmptyBoardStateView: View {
+    @AppStorage(BoardTheme.storageKey) private var boardThemeRaw: String = BoardTheme.parchment.rawValue
+    private var theme: BoardTheme { BoardTheme(rawValue: boardThemeRaw) ?? .parchment }
+
     var onCreateDummyBoard: () -> Void
     var onImportBoard: (() -> Void)?   // nil hides the tile (e.g. non-macOS)
     var onAddClue: () -> Void
@@ -36,13 +39,14 @@ struct EmptyBoardStateView: View {
             VStack(spacing: 8) {
                 Image(systemName: "square.grid.3x3.topleft.filled")
                     .font(.system(size: 40, weight: .semibold))
-                    .foregroundColor(.gray.opacity(0.7))
+                    .foregroundColor(theme.secondaryText)
+                    .accessibilityHidden(true)
                 Text("Your Board is Empty")
                     .font(.title2.bold())
-                    .foregroundColor(.black)
+                    .foregroundColor(theme.primaryText)
                 Text("Get started with a sample board, load a saved one, or add your first clue.")
                     .font(.subheadline)
-                    .foregroundColor(.black)
+                    .foregroundColor(theme.primaryText)
                     .multilineTextAlignment(.center)
             }
 
@@ -51,7 +55,7 @@ struct EmptyBoardStateView: View {
                     icon: "square.grid.3x3.fill",
                     title: "5 × 5 Sample Board",
                     subtitle: "Start with placeholder categories and clues",
-                    tint: .blue,
+                    tint: .jeopardyTileNavy,
                     action: onCreateDummyBoard
                 )
 
@@ -60,7 +64,7 @@ struct EmptyBoardStateView: View {
                         icon: "square.and.arrow.up.fill",
                         title: "Import Board",
                         subtitle: "Load a previously saved .json board",
-                        tint: .purple,
+                        tint: .jeopardyTilePurple,
                         action: onImportBoard
                     )
                 }
@@ -69,7 +73,7 @@ struct EmptyBoardStateView: View {
                     icon: "plus.circle.fill",
                     title: "Add a Clue",
                     subtitle: "Build your board one clue at a time",
-                    tint: .orange,
+                    tint: .jeopardyTileBurnt,
                     action: onAddClue
                 )
             }
@@ -87,6 +91,7 @@ private struct EmptyStateTile: View {
     let action: () -> Void
 
     @State private var isHovering = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         Button(action: action) {
@@ -97,6 +102,7 @@ private struct EmptyStateTile: View {
                     .frame(width: 64, height: 64)
                     .background(tint.gradient)
                     .clipShape(RoundedRectangle(cornerRadius: 16))
+                    .accessibilityHidden(true)
                     .shadow(color: tint.opacity(0.35), radius: isHovering ? 10 : 5, y: 3)
 
                 VStack(spacing: 4) {
@@ -120,11 +126,13 @@ private struct EmptyStateTile: View {
                 RoundedRectangle(cornerRadius: 18)
                     .stroke(isHovering ? tint.opacity(0.5) : Color.secondary.opacity(0.15), lineWidth: isHovering ? 2 : 1)
             )
-            .scaleEffect(isHovering ? 1.03 : 1.0)
+            // Reduce Motion: no grow-on-hover (the outline/shadow change
+            // still signals hover).
+            .scaleEffect(isHovering && !reduceMotion ? 1.03 : 1.0)
         }
         .buttonStyle(.plain)
         .onHover { hovering in
-            withAnimation(.easeOut(duration: 0.15)) { isHovering = hovering }
+            withMotionPreference(reduceMotion: reduceMotion, .easeOut(duration: 0.15)) { isHovering = hovering }
         }
     }
 }

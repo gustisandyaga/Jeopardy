@@ -145,6 +145,7 @@ struct ClueEditorView: View {
                     Image(systemName: isShowingHelp ? "questionmark.circle.fill" : "questionmark.circle")
                 }
                 .help("Show or hide a plain-language explanation of each section")
+                .accessibilityLabel(isShowingHelp ? "Hide section help" : "Show section help")
             }
         }
     }

@@ -17,9 +17,11 @@ struct AudioPlayerView: View {
         VStack(spacing: 10) {
             HStack(spacing: 8) {
                 Image(systemName: volumeIcon)
+                    .accessibilityHidden(true)
                     .foregroundColor(.secondary)
                     .frame(width: 20)
                 Slider(value: $controller.volume, in: 0...1)
+                    .accessibilityLabel("Volume")
             }
             
             HStack(spacing: 16) {
@@ -27,9 +29,10 @@ struct AudioPlayerView: View {
                     Image(systemName: controller.isPlaying ? "pause.circle.fill" : "play.circle.fill")
                         .resizable()
                         .frame(width: 44, height: 44)
-                        .foregroundColor(.yellow)
+                        .foregroundColor(.jeopardyGold)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel(controller.isPlaying ? "Pause" : "Play")
 
                 Button(action: controller.stop) {
                     Image(systemName: "stop.circle.fill")
@@ -39,13 +42,14 @@ struct AudioPlayerView: View {
                 }
                 .buttonStyle(.plain)
                 .help("Stop and reset to the beginning")
+                .accessibilityLabel("Stop")
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Audio Clue")
                         .font(.headline)
                     Text(statusText)
                         .font(.subheadline)
-                        .foregroundColor(controller.isFinished ? .green : .secondary)
+                        .foregroundColor(controller.isFinished ? .jeopardyCorrect : .secondary)
                 }
 
                 Spacer()
@@ -68,11 +72,11 @@ struct AudioPlayerView: View {
             }
         }
         .padding()
-        .background(Color.blue.opacity(0.1))
+        .background(Color.jeopardyInfo.opacity(0.1))
         .cornerRadius(15)
         .overlay(
             RoundedRectangle(cornerRadius: 15)
-                .stroke(Color.blue.opacity(0.3), lineWidth: 1)
+                .stroke(Color.jeopardyInfo.opacity(0.3), lineWidth: 1)
         )
         .onAppear {
             controller.load(data: audioData)

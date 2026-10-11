@@ -27,6 +27,11 @@ struct BoardGridView: View {
         BoardGridDensity(rawValue: gridDensityRaw) ?? .comfortable
     }
 
+    @AppStorage(BoardTheme.storageKey) private var boardThemeRaw: String = BoardTheme.parchment.rawValue
+    private var theme: BoardTheme {
+        BoardTheme(rawValue: boardThemeRaw) ?? .parchment
+    }
+
     private let columnWidth: CGFloat = 200
 
     var categories: [String] {
@@ -55,11 +60,12 @@ struct BoardGridView: View {
                 boardGrid
             }
         }
-        // The board's 60% — Parchment. Deliberately scoped to just this
+        // The board's 60% — the theme's backdrop (Parchment by default, or
+        // Broadcast's near-black navy). Deliberately scoped to just this
         // grid (not ContentView's outer window or ClueDetailView), so the
         // rest of the app keeps following the system's light/dark mode.
-        // See PROJECT.md "Color Theme" addendum.
-        .background(Color.jeopardyBackground)
+        // See BoardTheme.swift and PROJECT.md "Color Theme" addendum.
+        .background(theme.backdrop)
         .onAppear {
             selectedPoints = 0
         }
@@ -100,15 +106,13 @@ struct BoardGridView: View {
                                 VStack(spacing: gridDensity.rowSpacing) {
                                     let categoryClues = clues.filter { $0.category == category }
                                     ForEach(categoryClues) { clue in
-                                        NavigationLink(destination: ClueDetailView(clue: clue, selectedPoints: $selectedPoints, activeClue: $activeClue)) {
-                                            ClueCardView(clue: clue, onEdit: { editingClue = clue })
-                                                .frame(width: columnWidth, height: 120)
-                                        }
-                                        .buttonStyle(.plain)
-                                        .simultaneousGesture(TapGesture().onEnded {
-                                            selectedPoints = clue.points
-                                            activeClue = clue
-                                        })
+                                        ClueTileView(
+                                            clue: clue,
+                                            selectedPoints: $selectedPoints,
+                                            activeClue: $activeClue,
+                                            onEdit: { editingClue = clue }
+                                        )
+                                        .frame(width: columnWidth, height: 120)
                                     }
                                 }
                                 .frame(width: columnWidth)

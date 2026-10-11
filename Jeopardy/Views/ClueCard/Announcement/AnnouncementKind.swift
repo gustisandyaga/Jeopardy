@@ -36,18 +36,32 @@ enum AnnouncementKind {
         }
     }
 
-    /// Final Jeopardy uses the theme's reserved "special occasion" color
-    /// (.jeopardyFinal, Indigo Velvet) instead of a generic .yellow, so it
-    /// reads as visually distinct from Daily Double/Multiple People rather
-    /// than just another accent color. See Theme/JeopardyColors.swift and
-    /// PROJECT.md's "Color Theme" addendum. Daily Double and Multiple
-    /// People are intentionally left on their original colors for now —
-    /// also noted in PROJECT.md as a backlog item.
+    /// Icon color, drawn on `background` below. Final Jeopardy uses Saffron on
+    /// its reserved Indigo Velvet backdrop; Daily Double and Multiple People
+    /// use light amber/mint on the board's navy. All measured ≥ 5.6:1 — see
+    /// Theme/JeopardyColors.swift and CLAUDE.md.
     var color: Color {
         switch self {
-        case .finalJeopardy: return .jeopardyFinal
-        case .dailyDouble: return .orange
-        case .multiplePeople: return .mint
+        case .finalJeopardy: return .jeopardyAccent
+        case .dailyDouble: return .jeopardyDailyDoubleIcon
+        case .multiplePeople: return .jeopardyMultiplePeopleIcon
+        }
+    }
+
+    /// Opaque backdrop, so the screen no longer depends on the window's
+    /// light/dark appearance (the old translucent blue/indigo gradient did,
+    /// and the Final Jeopardy icon, itself indigo, nearly vanished into it).
+    /// Final Jeopardy keeps its reserved Indigo Velvet as the *background*;
+    /// the others use the board's navy. Every icon/text color above is
+    /// measured against the lighter stop of its gradient (≥ 5.6:1).
+    var background: LinearGradient {
+        switch self {
+        case .finalJeopardy:
+            return LinearGradient(colors: [.jeopardyFinal, .jeopardyFinalDeep],
+                                  startPoint: .topLeading, endPoint: .bottomTrailing)
+        case .dailyDouble, .multiplePeople:
+            return LinearGradient(colors: [.jeopardyCardHighlight, .jeopardyCard],
+                                  startPoint: .topLeading, endPoint: .bottomTrailing)
         }
     }
 }
@@ -58,18 +72,23 @@ struct ClueAnnouncementView: View {
 
     var body: some View {
         ZStack {
-            LinearGradient(
-                colors: [Color.blue.opacity(0.95), Color.indigo.opacity(0.95)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea()
+            kind.background
+                .ignoresSafeArea()
 
             VStack(spacing: 26) {
+                // Glow sits BEHIND the icon, at low opacity. A .shadow on the
+                // symbol itself shows through knocked-out glyphs (the "2" in
+                // 2.circle.fill) and turned the numeral a murky grey.
                 Image(systemName: kind.symbol)
                     .font(.system(size: 100, weight: .bold))
                     .foregroundColor(kind.color)
-                    .shadow(color: kind.color.opacity(0.5), radius: 15)
+                    .background {
+                        Circle()
+                            .fill(kind.color)
+                            .blur(radius: 28)
+                            .opacity(0.22)
+                            .frame(width: 130, height: 130)
+                    }
                 Text(kind.title)
                     .font(.system(size: 48, weight: .black, design: .serif))
                     .multilineTextAlignment(.center)
@@ -77,10 +96,17 @@ struct ClueAnnouncementView: View {
                 Text(kind.message)
                     .font(.title3)
                     .foregroundColor(.white.opacity(0.9))
-                Button("Show Clue", action: onContinue)
-                    .buttonStyle(.borderedProminent)
-                    .tint(kind.color)
-                    .controlSize(.large)
+                // Navy label on Saffron (8.7:1). The default prominent
+                // button draws a white label, which was 2.2:1 on orange.
+                Button(action: onContinue) {
+                    Text("Show Clue")
+                        .font(.headline)
+                        .foregroundColor(.jeopardyCard)
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 8)
+                        .background(Capsule().fill(Color.jeopardyAccent))
+                }
+                .buttonStyle(.plain)
             }
             .padding(48)
         }

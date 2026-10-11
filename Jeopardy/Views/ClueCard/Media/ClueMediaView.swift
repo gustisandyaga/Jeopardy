@@ -53,6 +53,8 @@ struct ExpandingClueImageView: View {
             }
             .buttonStyle(.plain)
             .help("Click to zoom in")
+            .accessibilityLabel("Clue image")
+            .accessibilityHint("Opens a larger view")
             .sheet(isPresented: $isShowingLightbox) {
                 ImageLightboxView(nsImage: nsImage)
             }

@@ -28,6 +28,8 @@ struct CategoryHeader: View {
     @Environment(\.modelContext) private var modelContext
     @AppStorage(BoardGridDensity.storageKey) private var gridDensityRaw: String = BoardGridDensity.comfortable.rawValue
 
+    @AppStorage(BoardTheme.storageKey) private var boardThemeRaw: String = BoardTheme.parchment.rawValue
+
     @State private var isShowingRules = false
     @State private var isEditingRules = false
     @State private var rulesDraft = ""
@@ -35,14 +37,18 @@ struct CategoryHeader: View {
     @State private var isShowingRename = false
     @State private var renameDraft = ""
 
+    private var theme: BoardTheme {
+        BoardTheme(rawValue: boardThemeRaw) ?? .parchment
+    }
+
     private var gridDensity: BoardGridDensity {
         BoardGridDensity(rawValue: gridDensityRaw) ?? .comfortable
     }
 
-    /// Deliberately NOT the same value as ClueCardView's `Color.gray.opacity(0.55)`
-    /// — see file header. This is a cooler, slightly darker slate rather than a
-    /// neutral grey, so a fully-answered category header still reads as
-    /// distinct from an individual answered clue tile even at a glance.
+    /// Deliberately NOT the same look as ClueCardView's opened tile (light warm
+    /// grey, dark text) — see file header. This is a dark slate with white
+    /// text, so a fully-answered category header still reads as distinct from
+    /// an individual answered clue tile even at a glance.
     ///
     /// The active-state color draws from the centralized theme
     /// (`.jeopardyCard` / `.jeopardyCardHighlight`, Oxford Blue) instead of a
@@ -54,12 +60,9 @@ struct CategoryHeader: View {
     /// with.
     private var headerFill: LinearGradient {
         if isCompleted {
-            let completedBase = Color(red: 0.30, green: 0.33, blue: 0.38)
-            return LinearGradient(
-                colors: [completedBase.opacity(0.72), completedBase.opacity(0.85)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
+            // Opaque slate with full-opacity white text (≥ 6.2:1). The old
+            // translucent slate + white@60% text measured 2.5–3.0:1.
+            return theme.completedFill
         } else {
             return LinearGradient(
                 colors: [.jeopardyCardHighlight, .jeopardyCard],
@@ -88,13 +91,38 @@ struct CategoryHeader: View {
                     .padding(.horizontal, 4)
                     .frame(maxWidth: .infinity)
                     .frame(height: 60)
-                    .background(headerFill)
-                    .foregroundColor(isCompleted ? .white.opacity(0.6) : .white)
-                    .cornerRadius(gridDensity.cardCornerRadius)
-                    .shadow(color: .black.opacity(0.18), radius: 3, x: 0, y: 2)
+                    // Shadow on the background shape only, so it doesn't
+                    // also smear the title text.
+                    .background {
+                        RoundedRectangle(cornerRadius: gridDensity.cardCornerRadius)
+                            .fill(headerFill)
+                            .shadow(color: .black.opacity(0.18), radius: 3, x: 0, y: 2)
+                    }
+                    .foregroundColor(.white)
+                    // Broadcast outline — same reasoning as ClueCardView.
+                    .overlay {
+                        if let edge = isCompleted ? nil : theme.cardEdge {
+                            RoundedRectangle(cornerRadius: gridDensity.cardCornerRadius)
+                                .strokeBorder(edge, lineWidth: 1)
+                        }
+                    }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("Category \(title)")
+                    .accessibilityValue(isCompleted ? "Completed" : "")
             }
             .frame(maxWidth: .infinity)
             .frame(height: 60)
+            // Completion must not rely on color alone (WCAG 1.4.1) — the
+            // header text is no longer dimmed, so a checkmark carries it.
+            .overlay(alignment: .topLeading) {
+                if isCompleted {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(.white.opacity(0.85))
+                        .padding(6)
+                        .help("Every clue in this category has been opened")
+                        .accessibilityHidden(true)   // announced as the header's "Completed" value
+                }
+            }
 
             HStack(spacing: 6) {
                 Button {
@@ -106,6 +134,7 @@ struct CategoryHeader: View {
                 }
                 .buttonStyle(.plain)
                 .help("Rename category")
+                .accessibilityLabel("Rename category \(title)")
 
                 Button {
                     rulesDraft = fetchOrCreateCategoryInfo().rulesText ?? ""
@@ -117,6 +146,7 @@ struct CategoryHeader: View {
                 }
                 .buttonStyle(.plain)
                 .help("Category rules")
+                .accessibilityLabel("Rules for category \(title)")
             }
             .padding(6)
         }

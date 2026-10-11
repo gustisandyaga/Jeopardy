@@ -8,6 +8,20 @@ struct ContentView: View {
     @State private var isShowingAddClue = false // Control the pop-up
     @State private var isConfirmingLoad = false
     @State private var isConfirmingReset = false
+    @State private var isConfirmingReactivateAll = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// Every clue (including Final Jeopardy), so Reactivate All can tell
+    /// whether there's anything to reactivate.
+    @Query private var allClues: [Clue]
+    private var playedClues: [Clue] {
+        allClues.filter { $0.isOpened || !$0.eliminatedChoiceIndices.isEmpty || $0.fiftyFiftyUsed }
+    }
+
+    @AppStorage(BoardTheme.storageKey) private var boardThemeRaw: String = BoardTheme.parchment.rawValue
+    private var boardTheme: BoardTheme {
+        BoardTheme(rawValue: boardThemeRaw) ?? .parchment
+    }
 
     @AppStorage(BoardGridDensity.storageKey) private var gridDensityRaw: String = BoardGridDensity.comfortable.rawValue
     private var gridDensity: BoardGridDensity {
@@ -53,14 +67,14 @@ struct ContentView: View {
                         .help("Load a board from a file, replacing the current one")
                         #endif
 
-                        // Accessibility option — lets the Host switch between the
-                        // default "Comfortable" board (moderate spacing, softened
-                        // card edges) and "Tight" (Heralen-style near-zero gaps).
-                        // Both independently reduce the Hermann grid illusion some
-                        // people see at the board's regular intersections; Tight
-                        // trades that softened look for a denser, gapless grid
-                        // instead. See PROJECT.md's "Hermann Grid Mitigation"
-                        // addendum and BoardGridDensity.swift.
+                        // Accessibility options for the Hermann grid illusion some
+                        // people see at the board's regular intersections. Two
+                        // independent levers, one menu:
+                        //  - Layout: Comfortable (moderate gaps, soft edges) vs
+                        //    Tight (near-zero gaps — removes the "streets").
+                        //  - Theme: Parchment (light) vs Broadcast (dark backdrop,
+                        //    ~1.2:1 against the cards instead of 14.7:1).
+                        // See BoardGridDensity.swift, BoardTheme.swift, PROJECT.md.
                         Menu {
                             Picker("Board Layout", selection: $gridDensityRaw) {
                                 ForEach(BoardGridDensity.allCases) { density in
@@ -69,17 +83,35 @@ struct ContentView: View {
                                 }
                             }
                             .pickerStyle(.inline)
+
+                            Picker("Board Theme", selection: $boardThemeRaw) {
+                                ForEach(BoardTheme.allCases) { theme in
+                                    Label(theme.title, systemImage: theme.icon)
+                                        .tag(theme.rawValue)
+                                }
+                            }
+                            .pickerStyle(.inline)
                         } label: {
-                            Label("Board Layout", systemImage: gridDensity.icon)
+                            Label("Board Appearance", systemImage: "paintpalette")
                         }
-                        .help("Board Layout: \(gridDensity.title) — \(gridDensity.subtitle). An accessibility option for reducing the grid effect some people see on the board.")
+                        .help("Board Appearance — Layout: \(gridDensity.title) (\(gridDensity.subtitle)). Theme: \(boardTheme.title) (\(boardTheme.subtitle)). Accessibility options for reducing the grid effect some people see on the board.")
+
+                        Button {
+                            isConfirmingReactivateAll = true
+                        } label: {
+                            Label("Reactivate All", systemImage: "arrow.counterclockwise")
+                        }
+                        .disabled(playedClues.isEmpty)
+                        .help(playedClues.isEmpty
+                              ? "Nothing to reactivate — no clue has been played yet"
+                              : "Make every clue playable again, to play this board anew")
 
                         Button(role: .destructive) {
                             isConfirmingReset = true
                         } label: {
                             Label("Reset Board", systemImage: "trash")
                         }
-                        .foregroundColor(.red)
+                        .foregroundColor(.jeopardyIncorrect)
                         .help("Clear the board or replace it with a 5 × 5 sample board")
                     }
                 }
@@ -99,6 +131,16 @@ struct ContentView: View {
                     Button("Cancel", role: .cancel) {}
                 }
                 #endif
+                .confirmationDialog(
+                    "Reactivate every clue?",
+                    isPresented: $isConfirmingReactivateAll,
+                    titleVisibility: .visible
+                ) {
+                    Button("Reactivate All") { reactivateAllClues() }
+                    Button("Cancel", role: .cancel) {}
+                } message: {
+                    Text("\(playedClues.count) played clue\(playedClues.count == 1 ? "" : "s") will become unplayed, with crossed-out options and 50:50 cleared. Players and scores aren't changed.")
+                }
                 .confirmationDialog(
                     "Reset Board",
                     isPresented: $isConfirmingReset,
@@ -134,8 +176,19 @@ struct ContentView: View {
         #endif
     }
     
+    /// Resets playthrough state on every clue (Final Jeopardy included) so a
+    /// finished or imported board can be played again. Content is untouched;
+    /// players/scores are separate (see BottomPlayerBar's reset).
+    private func reactivateAllClues() {
+        withMotionPreference(reduceMotion: reduceMotion) {
+            allClues.forEach { $0.reactivate() }
+            selectedPoints = 0
+            try? modelContext.save()
+        }
+    }
+
     private func clearBoard() {
-        withAnimation {
+        withMotionPreference(reduceMotion: reduceMotion) {
             do {
                 let currentClues = try modelContext.fetch(FetchDescriptor<Clue>())
                 currentClues.forEach { MediaStore.deleteVideo(filename: $0.videoFileName) }
@@ -154,7 +207,7 @@ struct ContentView: View {
 
         let categories = ["History", "Science", "Movies", "Music", "Geography"]
         let pointValues = [200, 400, 600, 800, 1000]
-        withAnimation {
+        withMotionPreference(reduceMotion: reduceMotion) {
             for category in categories {
                 modelContext.insert(CategoryInfo(name: category))
                 for (clueIndex, points) in pointValues.enumerated() {
